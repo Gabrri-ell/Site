@@ -513,8 +513,10 @@ function openTaskModal(taskId = null, prefillDate = null) {
   const modalTitle = document.getElementById('modal-title-text');
   currentEditingTaskId = taskId;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateStr(new Date());
   const dateInput = document.getElementById('task-date-input');
+
+  const recurrenceSelect = document.getElementById('task-recurrence-select');
 
   if (taskId) {
     const tasks = store.getTasks();
@@ -527,6 +529,7 @@ function openTaskModal(taskId = null, prefillDate = null) {
       document.getElementById('task-period-select').value = task.period || 'manha';
       document.getElementById('task-time-input').value = task.time || '09:00';
       if (dateInput) dateInput.value = task.date || todayStr;
+      if (recurrenceSelect) recurrenceSelect.value = task.recurrence || 'none';
       document.getElementById('task-status-select').value = task.status || 'todo';
       document.getElementById('task-tags-input').value = (task.tags || []).join(', ');
       document.getElementById('task-desc-input').value = task.description || '';
@@ -537,6 +540,7 @@ function openTaskModal(taskId = null, prefillDate = null) {
     form.reset();
     document.getElementById('task-time-input').value = '10:00';
     if (dateInput) dateInput.value = prefillDate || todayStr;
+    if (recurrenceSelect) recurrenceSelect.value = 'none';
     renderModalSubtasksList([]);
   }
 
@@ -619,7 +623,9 @@ function handleTaskFormSubmit(e) {
   let period = document.getElementById('task-period-select').value;
   const time = document.getElementById('task-time-input').value;
   const dateInput = document.getElementById('task-date-input');
-  const date = (dateInput && dateInput.value) ? dateInput.value : new Date().toISOString().slice(0, 10);
+  const date = (dateInput && dateInput.value) ? dateInput.value : getLocalDateStr(new Date());
+  const recurrenceSelect = document.getElementById('task-recurrence-select');
+  const recurrence = (recurrenceSelect && recurrenceSelect.value) ? recurrenceSelect.value : 'none';
   const status = document.getElementById('task-status-select').value;
   const rawTags = (document.getElementById('task-tags-input')?.value || '').split(',').map(t => t.trim()).filter(Boolean);
   const description = document.getElementById('task-desc-input').value.trim();
@@ -641,6 +647,7 @@ function handleTaskFormSubmit(e) {
     period, 
     time, 
     date,
+    recurrence,
     status, 
     tags: rawTags,
     subtasks: currentSubtasksInMemory,
@@ -735,42 +742,8 @@ function renderDashboard() {
     elHabitRate.textContent = `${habitsDoneToday}/${habits.length}`;
   }
 
-  // 2. Renderizar Timeline do Dia (Manhã, Tarde, Noite)
-  // Tarefas do dia: ou tem a data de hoje, ou não têm data definida (legado)
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todaysTasks = tasks.filter(t => !t.date || t.date === todayStr);
-
-  const morningContainer = document.getElementById('timeline-morning-list');
-  const afternoonContainer = document.getElementById('timeline-afternoon-list');
-  const nightContainer = document.getElementById('timeline-night-list');
-
-  const countMorning = document.getElementById('count-morning');
-  const countAfternoon = document.getElementById('count-afternoon');
-  const countNight = document.getElementById('count-night');
-
-  function resolvePeriod(t) {
-    if (t.time && t.time.includes(':')) {
-      const h = parseInt(t.time.split(':')[0], 10);
-      if (!isNaN(h)) {
-        if (h >= 5 && h < 12) return 'manha';
-        if (h >= 12 && h < 18) return 'tarde';
-        return 'noite';
-      }
-    }
-    return t.period || 'manha';
-  }
-
-  const morningTasks = todaysTasks.filter(t => resolvePeriod(t) === 'manha');
-  const afternoonTasks = todaysTasks.filter(t => resolvePeriod(t) === 'tarde');
-  const nightTasks = todaysTasks.filter(t => resolvePeriod(t) === 'noite');
-
-  if (countMorning) countMorning.textContent = morningTasks.length;
-  if (countAfternoon) countAfternoon.textContent = afternoonTasks.length;
-  if (countNight) countNight.textContent = nightTasks.length;
-
-  if (morningContainer) morningContainer.innerHTML = buildTimelineItemsHtml(morningTasks);
-  if (afternoonContainer) afternoonContainer.innerHTML = buildTimelineItemsHtml(afternoonTasks);
-  if (nightContainer) nightContainer.innerHTML = buildTimelineItemsHtml(nightTasks);
+  // 2. Renderizar Timeline do Dia
+  renderTimelineSection(tasks);
 
   // 3. Mini Habit List no Widget lateral do Dashboard
   const miniHabitContainer = document.getElementById('mini-habits-list');
@@ -801,6 +774,147 @@ function renderDashboard() {
   }
 }
 
+// --- HELPER DE DATAS LOCAIS (FUSO HORÁRIO LOCAL CORRETO) ---
+function getLocalDateStr(dateObj = new Date()) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// --- FILTRO DE DATA DA TIMELINE DO DASHBOARD ---
+let dashTimelineSelectedDate = getLocalDateStr(new Date());
+
+function switchDashboardTimelineDate(modeOrDate) {
+  const today = new Date();
+  if (modeOrDate === 'today') {
+    dashTimelineSelectedDate = getLocalDateStr(today);
+  } else if (modeOrDate === 'tomorrow') {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    dashTimelineSelectedDate = getLocalDateStr(tomorrow);
+  } else if (modeOrDate) {
+    dashTimelineSelectedDate = modeOrDate;
+  }
+
+  // Atualizar visual dos botões
+  const todayStr = getLocalDateStr(new Date());
+  const tomorrowObj = new Date();
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+  const tomorrowStr = getLocalDateStr(tomorrowObj);
+
+  const btnToday = document.getElementById('btn-timeline-today');
+  const btnTomorrow = document.getElementById('btn-timeline-tomorrow');
+  const customDateInput = document.getElementById('dash-timeline-custom-date');
+
+  if (btnToday) btnToday.classList.toggle('active', dashTimelineSelectedDate === todayStr);
+  if (btnTomorrow) btnTomorrow.classList.toggle('active', dashTimelineSelectedDate === tomorrowStr);
+  if (customDateInput) customDateInput.value = dashTimelineSelectedDate;
+
+  renderDashboard();
+}
+
+function openTaskModalForCurrentTimeline() {
+  openTaskModal(null, dashTimelineSelectedDate);
+}
+
+// Verifica se uma tarefa é aplicável a uma data considerando recorrências
+function isTaskScheduledForDate(task, dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const targetDate = new Date(y, m - 1, d);
+  const dayOfWeek = targetDate.getDay(); // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+
+  const taskDate = task.date || (task.createdAt ? task.createdAt.slice(0, 10) : null);
+
+  // Recorrências:
+  if (task.recurrence === 'weekdays') {
+    // Segunda (1) a Sexta (5)
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  }
+  if (task.recurrence === 'daily') {
+    // Todos os dias
+    return true;
+  }
+  if (task.recurrence === 'weekend') {
+    // Fins de semana (0=Dom, 6=Sáb)
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  }
+  if (task.recurrence === 'weekly' && taskDate) {
+    // Mesmo dia da semana em que foi criada
+    const [ty, tm, td] = taskDate.split('-').map(Number);
+    const originDay = new Date(ty, tm - 1, td).getDay();
+    return dayOfWeek === originDay;
+  }
+
+  // Sem recorrência (data única)
+  if (!task.date) {
+    // Legado sem data: exibe apenas no dia de hoje
+    const todayStr = getLocalDateStr(new Date());
+    return dateStr === todayStr;
+  }
+
+  return task.date === dateStr;
+}
+
+// 2. Renderizar Timeline do Dia (Manhã, Tarde, Noite)
+function renderTimelineSection(tasks) {
+  const targetDateStr = dashTimelineSelectedDate || getLocalDateStr(new Date());
+  const todayStr = getLocalDateStr(new Date());
+  const tomorrowObj = new Date();
+  tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+  const tomorrowStr = getLocalDateStr(tomorrowObj);
+
+  // Subtítulo descritivo da data da Timeline
+  const subTitleEl = document.getElementById('timeline-subtitle-date');
+  if (subTitleEl) {
+    const [y, m, d] = targetDateStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dateFormatted = dateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (targetDateStr === todayStr) {
+      subTitleEl.textContent = `Hoje (${dateFormatted}) — Suas atividades diárias e fixas`;
+    } else if (targetDateStr === tomorrowStr) {
+      subTitleEl.textContent = `Amanhã (${dateFormatted}) — Planejamento antecipado`;
+    } else {
+      subTitleEl.textContent = `Exibindo atividades de ${dateFormatted}`;
+    }
+  }
+
+  // Filtrar tarefas aplicáveis para a data selecionada
+  const activeTasks = tasks.filter(t => isTaskScheduledForDate(t, targetDateStr));
+
+  const morningContainer = document.getElementById('timeline-morning-list');
+  const afternoonContainer = document.getElementById('timeline-afternoon-list');
+  const nightContainer = document.getElementById('timeline-night-list');
+
+  const countMorning = document.getElementById('count-morning');
+  const countAfternoon = document.getElementById('count-afternoon');
+  const countNight = document.getElementById('count-night');
+
+  function resolvePeriod(t) {
+    if (t.time && t.time.includes(':')) {
+      const h = parseInt(t.time.split(':')[0], 10);
+      if (!isNaN(h)) {
+        if (h >= 5 && h < 12) return 'manha';
+        if (h >= 12 && h < 18) return 'tarde';
+        return 'noite';
+      }
+    }
+    return t.period || 'manha';
+  }
+
+  const morningTasks = activeTasks.filter(t => resolvePeriod(t) === 'manha');
+  const afternoonTasks = activeTasks.filter(t => resolvePeriod(t) === 'tarde');
+  const nightTasks = activeTasks.filter(t => resolvePeriod(t) === 'noite');
+
+  if (countMorning) countMorning.textContent = morningTasks.length;
+  if (countAfternoon) countAfternoon.textContent = afternoonTasks.length;
+  if (countNight) countNight.textContent = nightTasks.length;
+
+  if (morningContainer) morningContainer.innerHTML = buildTimelineItemsHtml(morningTasks);
+  if (afternoonContainer) afternoonContainer.innerHTML = buildTimelineItemsHtml(afternoonTasks);
+  if (nightContainer) nightContainer.innerHTML = buildTimelineItemsHtml(nightTasks);
+}
+
 function buildTimelineItemsHtml(tasksList) {
   if (!tasksList || tasksList.length === 0) {
     return `<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem; font-style: italic;">Nenhuma tarefa programada para este período.</div>`;
@@ -811,6 +925,17 @@ function buildTimelineItemsHtml(tasksList) {
     const catLabel = getCategoryLabel(task.category);
     const catClass = `badge-${task.category}`;
     const priorityClass = `priority-${task.priority}`;
+
+    let recBadge = '';
+    if (task.recurrence === 'weekdays') {
+      recBadge = `<span class="recurrence-badge" title="Repete toda semana de Segunda a Sexta">🔄 Seg-Sex</span>`;
+    } else if (task.recurrence === 'daily') {
+      recBadge = `<span class="recurrence-badge" title="Repete todos os dias">🔁 Diário</span>`;
+    } else if (task.recurrence === 'weekly') {
+      recBadge = `<span class="recurrence-badge" title="Repete toda semana no mesmo dia">📆 Semanal</span>`;
+    } else if (task.recurrence === 'weekend') {
+      recBadge = `<span class="recurrence-badge" title="Repete nos finais de semana">🏖️ Fim de Semana</span>`;
+    }
 
     return `
       <div class="task-item ${isCompleted ? 'completed' : ''}" id="timeline-item-${task.id}">
@@ -825,6 +950,7 @@ function buildTimelineItemsHtml(tasksList) {
             <span class="task-text-title">${escapeHtml(task.title)}</span>
             <div class="task-meta-row">
               <span class="badge ${catClass}">${catLabel}</span>
+              ${recBadge}
               <span class="priority-pill ${priorityClass}" title="Prioridade: ${task.priority}"></span>
               <span class="task-time-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1964,13 +2090,10 @@ function renderCalendarPage() {
   // 2. Coletar Tarefas
   const tasks = store.getTasks();
 
-  // Mapear tarefas por data (YYYY-MM-DD)
-  const tasksByDate = {};
-  tasks.forEach(t => {
-    const d = t.date || new Date(t.createdAt || Date.now()).toISOString().slice(0, 10);
-    if (!tasksByDate[d]) tasksByDate[d] = [];
-    tasksByDate[d].push(t);
-  });
+  // Helper para obter tarefas de um dia específico (considerando tarefas fixas / recorrentes)
+  function getTasksForDate(dStr) {
+    return tasks.filter(t => isTaskScheduledForDate(t, dStr));
+  }
 
   // 3. Gerar Grid do Mês
   const gridEl = document.getElementById('calendar-days-grid');
@@ -1990,7 +2113,7 @@ function renderCalendarPage() {
       const dayNum = prevMonthLastDate - i + 1;
       const prevDate = new Date(currentYear, currentMonth - 1, dayNum);
       const dStr = prevDate.toISOString().slice(0, 10);
-      const dayTasks = tasksByDate[dStr] || [];
+      const dayTasks = getTasksForDate(dStr);
       cellsHtml += `
         <div class="calendar-day-cell other-month" onclick="selectCalendarDay('${dStr}')">
           <span class="calendar-day-num">${dayNum}</span>
@@ -2010,7 +2133,7 @@ function renderCalendarPage() {
 
       const isToday = dStr === todayStr;
       const isSelected = dStr === calendarSelectedDateStr;
-      const dayTasks = tasksByDate[dStr] || [];
+      const dayTasks = getTasksForDate(dStr);
 
       cellsHtml += `
         <div class="calendar-day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="selectCalendarDay('${dStr}')" title="${day} de ${MONTH_NAMES[currentMonth]}${isToday ? ' (Hoje)' : ''}">
@@ -2026,7 +2149,7 @@ function renderCalendarPage() {
     for (let day = 1; day <= nextDays; day++) {
       const nextDate = new Date(currentYear, currentMonth + 1, day);
       const dStr = nextDate.toISOString().slice(0, 10);
-      const dayTasks = tasksByDate[dStr] || [];
+      const dayTasks = getTasksForDate(dStr);
       cellsHtml += `
         <div class="calendar-day-cell other-month" onclick="selectCalendarDay('${dStr}')">
           <span class="calendar-day-num">${day}</span>
@@ -2039,7 +2162,7 @@ function renderCalendarPage() {
   }
 
   // 4. Renderizar painel lateral do dia selecionado
-  renderCalendarSelectedDayPanel(tasksByDate);
+  renderCalendarSelectedDayPanel(getTasksForDate(calendarSelectedDateStr));
 }
 
 function renderCalendarDayEvents(dayTasks) {
@@ -2084,7 +2207,7 @@ function renderCalendarSelectedDayPanel(tasksByDate) {
     addBtn.onclick = () => openTaskModalForDate(calendarSelectedDateStr);
   }
 
-  const dayTasks = tasksByDate[calendarSelectedDateStr] || [];
+  const dayTasks = Array.isArray(tasksByDate) ? tasksByDate : (tasksByDate[calendarSelectedDateStr] || []);
   if (panelList) {
     if (dayTasks.length === 0) {
       panelList.innerHTML = `

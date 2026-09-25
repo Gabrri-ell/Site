@@ -33,11 +33,9 @@
         <span class="logo-text">CHRONOS<span>.</span></span>
       </a>
 
-      <!-- Data e Hora em Tempo Real -->
+      <!-- Horário em Tempo Real -->
       <div class="nav-datetime" id="nav-datetime-box" title="Horário local em tempo real">
         <span class="datetime-pulse"></span>
-        <span id="nav-live-date">Carregando data...</span>
-        <span>•</span>
         <span id="nav-live-time" class="time-highlight">--:--</span>
       </div>
 
@@ -221,7 +219,7 @@
       <section class="dashboard-content-split">
         <!-- Coluna da Timeline (Manhã, Tarde, Noite) -->
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="flex-wrap:wrap; gap:0.75rem;">
             <div>
               <h2 class="card-title">
                 <span class="card-title-icon">
@@ -229,13 +227,25 @@
                 </span>
                 Timeline do Dia
               </h2>
-              <p class="card-subtitle">Suas tarefas segmentadas estrategicamente por período</p>
+              <p class="card-subtitle" id="timeline-subtitle-date">Tarefas e compromissos segmentados estrategicamente</p>
             </div>
-            <div style="display:flex; gap:0.5rem; align-items:center;">
+            
+            <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+              <div class="timeline-day-filter-group">
+                <button type="button" class="btn btn-secondary btn-sm active" id="btn-timeline-today" onclick="switchDashboardTimelineDate('today')">
+                  Hoje
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-timeline-tomorrow" onclick="switchDashboardTimelineDate('tomorrow')">
+                  Amanhã
+                </button>
+                <input type="date" id="dash-timeline-custom-date" class="form-input" style="padding:0.3rem 0.5rem; font-size:0.75rem; width:130px; height:32px;" onchange="switchDashboardTimelineDate(this.value)" title="Ver tarefas de outra data">
+              </div>
               <button class="btn btn-secondary btn-sm" onclick="window.print()" title="Imprimir ou Salvar Timeline em PDF">
-                🖨️ Imprimir PDF
+                🖨️ PDF
               </button>
-              <a href="tarefas.html" class="btn btn-secondary btn-sm">Ver Todas</a>
+              <button class="btn btn-primary btn-sm" onclick="openTaskModalForCurrentTimeline()" title="Criar tarefa para a data exibida">
+                + Nova Tarefa
+              </button>
             </div>
           </div>
 
@@ -453,7 +463,6 @@
             </div>
           </div>
 
-          <!-- Período & Horário -->
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="task-date-input">Data Prevista 📅</label>
@@ -461,18 +470,31 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="task-time-input">Horário Previsto</label>
-              <input type="time" id="task-time-input" class="form-input" value="14:00">
+              <label class="form-label" for="task-recurrence-select">Repetição / Recorrência 🔄</label>
+              <select id="task-recurrence-select" class="form-input filter-select">
+                <option value="none" selected>Apenas nesta data (Única)</option>
+                <option value="weekdays">📅 Segunda a Sexta (Dias úteis)</option>
+                <option value="daily">🔁 Todos os dias (Diário)</option>
+                <option value="weekly">📆 Semanal (No mesmo dia)</option>
+                <option value="weekend">🏖️ Finais de Semana (Sáb e Dom)</option>
+              </select>
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="task-period-select">Período do Dia (Automático por Horário) *</label>
-            <select id="task-period-select" class="form-input filter-select">
-              <option value="manha">🌅 Manhã (05:00 - 11:59)</option>
-              <option value="tarde" selected>☀️ Tarde (12:00 - 17:59)</option>
-              <option value="noite">🌙 Noite (18:00 - 04:59)</option>
-            </select>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="task-time-input">Horário Previsto</label>
+              <input type="time" id="task-time-input" class="form-input" value="14:00">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="task-period-select">Período (Automático por Horário) *</label>
+              <select id="task-period-select" class="form-input filter-select">
+                <option value="manha">🌅 Manhã (05:00 - 11:59)</option>
+                <option value="tarde" selected>☀️ Tarde (12:00 - 17:59)</option>
+                <option value="noite">🌙 Noite (18:00 - 04:59)</option>
+              </select>
+            </div>
           </div>
 
           <!-- Status Inicial -->

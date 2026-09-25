@@ -199,17 +199,19 @@ main.main-content {
   color: var(--accent-cyan);
 }
 
-/* Relógio e Data em tempo real */
+/* Relógio compacto em tempo real (apenas horário) */
 .nav-datetime {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.9rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  font-size: 0.82rem;
-  color: var(--text-secondary);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .datetime-pulse {
@@ -228,8 +230,10 @@ main.main-content {
 
 .time-highlight {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--font-mono);
+  font-size: 0.88rem;
+  letter-spacing: 0.5px;
 }
 
 /* Links de Navegação */
@@ -713,6 +717,47 @@ main.main-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 1.5rem;
+}
+
+/* Filtro de Dias da Timeline (Hoje, Amanhã, Custom) */
+.timeline-day-filter-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem;
+  gap: 0.25rem;
+}
+
+.timeline-day-filter-group .btn-sm {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-xs);
+  transition: all var(--trans-fast);
+}
+
+.timeline-day-filter-group .btn-sm.active {
+  background: var(--accent-cyan);
+  color: #04101e;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.recurrence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
 .timeline-period-group {
