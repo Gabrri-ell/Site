@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chronos — Dashboard de Gestão Pessoal & Rotina</title>
   <meta name="description" content="Aplicação moderna de gestão pessoal, produtividade, hábitos diários e equilíbrio entre trabalho e bem-estar.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-page="dashboard">
@@ -60,11 +62,34 @@
               Hábitos & Rotina
             </a>
           </li>
+          <li>
+            <a href="calendario.html" class="nav-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>
+              Calendário & Agenda
+            </a>
+          </li>
         </ul>
       </nav>
 
       <!-- Ações da Navbar -->
       <div class="nav-actions">
+        <!-- Seletor de Temas de Cores -->
+        <div class="theme-picker" title="Escolha a cor de destaque">
+          <span class="theme-dot active" data-theme="cyan" style="background:#38bdf8;" onclick="switchTheme('cyan')"></span>
+          <span class="theme-dot" data-theme="purple" style="background:#c084fc;" onclick="switchTheme('purple')"></span>
+          <span class="theme-dot" data-theme="emerald" style="background:#34d399;" onclick="switchTheme('emerald')"></span>
+          <span class="theme-dot" data-theme="amber" style="background:#fbbf24;" onclick="switchTheme('amber')"></span>
+          <span class="theme-dot" data-theme="rose" style="background:#fb7185;" onclick="switchTheme('rose')"></span>
+        </div>
+
+        <!-- Atalhos & Notificações -->
+        <button class="btn btn-secondary btn-icon" onclick="openShortcutsModal()" title="Atalhos de teclado (?)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+
+        <!-- Perfil / Autenticação de Usuário -->
+        <div id="nav-user-profile"></div>
+
         <button class="btn btn-primary" id="btn-quick-new-task" onclick="openTaskModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nova Tarefa
@@ -81,6 +106,7 @@
         <li><a href="index.html" class="nav-link active">🏠 Dashboard</a></li>
         <li><a href="tarefas.html" class="nav-link">📋 Gerenciador de Tarefas & Kanban</a></li>
         <li><a href="rotina.html" class="nav-link">🔥 Hábitos & Diário de Rotina</a></li>
+        <li><a href="calendario.html" class="nav-link">📅 Calendário & Agenda Futura</a></li>
       </ul>
     </div>
   </header>
@@ -97,7 +123,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               Controle Diário Integrado
             </span>
-            <h1 class="welcome-title" id="hero-greeting-text">Olá, Alex!</h1>
+            <h1 class="welcome-title" id="hero-greeting-text">Bem-vindo!</h1>
             <p class="welcome-subtitle">
               Seu painel sincronizado para equilíbrio entre trabalho, lazer, saúde e estudos contínuos.
             </p>
@@ -205,7 +231,12 @@
               </h2>
               <p class="card-subtitle">Suas tarefas segmentadas estrategicamente por período</p>
             </div>
-            <a href="tarefas.html" class="btn btn-secondary btn-sm">Ver Todas</a>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <button class="btn btn-secondary btn-sm" onclick="window.print()" title="Imprimir ou Salvar Timeline em PDF">
+                🖨️ Imprimir PDF
+              </button>
+              <a href="tarefas.html" class="btn btn-secondary btn-sm">Ver Todas</a>
+            </div>
           </div>
 
           <!-- Período: Manhã -->
@@ -248,8 +279,39 @@
           </div>
         </div>
 
-        <!-- Coluna Lateral: Hábitos & Insights -->
+        <!-- Coluna Lateral: Pomodoro, Hábitos & Insights -->
         <aside class="side-widgets-col">
+          <!-- Widget: Timer Pomodoro -->
+          <div class="pomodoro-card">
+            <div class="pomodoro-mode-pills">
+              <span class="pomodoro-pill active" data-mode="focus" onclick="Pomodoro.setMode('focus')">Foco (25m)</span>
+              <span class="pomodoro-pill" data-mode="short" onclick="Pomodoro.setMode('short')">Pausa (5m)</span>
+              <span class="pomodoro-pill" data-mode="long" onclick="Pomodoro.setMode('long')">Longa (15m)</span>
+            </div>
+
+            <div class="pomodoro-time-display" id="pomodoro-timer-text">25:00</div>
+
+            <div class="pomodoro-controls">
+              <button class="btn btn-primary btn-sm" id="pomodoro-toggle-btn" onclick="Pomodoro.toggle()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Iniciar
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="Pomodoro.reset()" title="Reiniciar Cronômetro">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+              <button class="ambient-sound-btn" id="pomodoro-ambient-btn" onclick="Pomodoro.toggleAmbientSound()" title="Ruído branco suave de chuva gerado via Web Audio">
+                🌧️ Som Chuva
+              </button>
+              <button class="btn btn-secondary btn-icon btn-sm" onclick="requestNotificationPermission()" title="Habilitar Notificações">
+                🔔
+              </button>
+            </div>
+
+            <div class="pomodoro-cycles-count">
+              Ciclos completados hoje: <strong id="pomodoro-cycles-val" style="color:var(--accent-cyan); font-family:var(--font-mono);">0</strong>
+            </div>
+          </div>
+
           <!-- Widget: Hábitos de Hoje -->
           <div class="card">
             <div class="card-header">
@@ -287,10 +349,25 @@
     </div>
   </main>
 
-  <!-- FOOTER -->
+  <!-- FOOTER COM CONTROLES DE BACKUP -->
   <footer class="footer">
     <div class="container footer-inner">
       <p>© 2026 Chronos Personal Hub. Interface moderna em Dark Mode com Vanilla JS & CSS3.</p>
+      
+      <!-- Controles de Backup & Reset -->
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="exportUserDataBackup()" title="Baixar arquivo JSON com todas as tarefas e hábitos">
+          📥 Exportar Backup
+        </button>
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;" title="Restaurar backup JSON">
+          📤 Importar Backup
+          <input type="file" accept=".json" style="display:none;" onchange="importUserDataBackup(this)">
+        </label>
+        <button class="btn btn-danger btn-sm" onclick="resetAllDataFactory()" title="Restaurar dados padrão de fábrica">
+          Resetar Dados
+        </button>
+      </div>
+
       <div class="footer-links">
         <a href="index.html">Dashboard</a>
         <a href="tarefas.html">Tarefas</a>
@@ -298,6 +375,41 @@
       </div>
     </div>
   </footer>
+
+  <!-- MODAL: ATALHOS DE TECLADO (?) -->
+  <div class="modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⌨️ Atalhos de Teclado</h3>
+        <button class="modal-close-btn" onclick="closeShortcutsModal()" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body" style="gap: 0.5rem;">
+        <div class="shortcut-row">
+          <span>Criar Nova Tarefa</span>
+          <span class="shortcut-pill">N</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Iniciar / Pausar Pomodoro</span>
+          <span class="shortcut-pill">P</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Focar na Busca de Tarefas</span>
+          <span class="shortcut-pill">/</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Fechar qualquer Modal</span>
+          <span class="shortcut-pill">ESC</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Abrir este Guia de Atalhos</span>
+          <span class="shortcut-pill">?</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeShortcutsModal()">Entendido</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: NOVA / EDITAR TAREFA -->
   <div class="modal-overlay" id="task-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-text">
@@ -344,18 +456,23 @@
           <!-- Período & Horário -->
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="task-period-select">Período do Dia *</label>
-              <select id="task-period-select" class="form-input filter-select">
-                <option value="manha">🌅 Manhã</option>
-                <option value="tarde" selected>☀️ Tarde</option>
-                <option value="noite">🌙 Noite</option>
-              </select>
+              <label class="form-label" for="task-date-input">Data Prevista 📅</label>
+              <input type="date" id="task-date-input" class="form-input">
             </div>
 
             <div class="form-group">
               <label class="form-label" for="task-time-input">Horário Previsto</label>
               <input type="time" id="task-time-input" class="form-input" value="14:00">
             </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="task-period-select">Período do Dia (Automático por Horário) *</label>
+            <select id="task-period-select" class="form-input filter-select">
+              <option value="manha">🌅 Manhã (05:00 - 11:59)</option>
+              <option value="tarde" selected>☀️ Tarde (12:00 - 17:59)</option>
+              <option value="noite">🌙 Noite (18:00 - 04:59)</option>
+            </select>
           </div>
 
           <!-- Status Inicial -->
@@ -368,16 +485,88 @@
             </select>
           </div>
 
+          <!-- Tags / Etiquetas Customizáveis -->
+          <div class="form-group">
+            <label class="form-label" for="task-tags-input">Tags / Etiquetas (Separadas por vírgula)</label>
+            <input type="text" id="task-tags-input" class="form-input" placeholder="Ex: urgente, backend, reunião">
+          </div>
+
+          <!-- Subtarefas / Checklist -->
+          <div class="form-group">
+            <label class="form-label">Subtarefas / Etapas da Atividade</label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="new-subtask-input" class="form-input" placeholder="Adicionar etapa (ex: Enviar e-mail)...">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addMemorySubtask()">+ Adicionar</button>
+            </div>
+            <div id="modal-subtasks-list" class="subtasks-container"></div>
+          </div>
+
           <!-- Descrição / Detalhes -->
           <div class="form-group">
             <label class="form-label" for="task-desc-input">Notas / Descrição (Opcional)</label>
-            <textarea id="task-desc-input" class="form-input" rows="3" placeholder="Informações adicionais, links ou checklist rápida..."></textarea>
+            <textarea id="task-desc-input" class="form-input" rows="2" placeholder="Informações adicionais, links ou notas livres..."></textarea>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" onclick="closeTaskModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="btn-submit-task">Salvar Tarefa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AUTENTICAÇÃO (LOGIN & CADASTRO COM E-MAIL E SENHA) -->
+  <div class="modal-overlay" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" color="var(--accent-cyan)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="auth-modal-title">Acessar sua Conta</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeAuthModal()" aria-label="Fechar">✕</button>
+      </div>
+
+      <form id="auth-form">
+        <div class="modal-body">
+          <!-- Abas: Entrar vs Criar Conta -->
+          <div class="auth-tab-buttons">
+            <div class="auth-tab-btn active" id="auth-tab-login" onclick="setAuthTab('login')">Entrar</div>
+            <div class="auth-tab-btn" id="auth-tab-register" onclick="setAuthTab('register')">Criar Nova Conta</div>
+          </div>
+
+          <!-- Mensagem de Erro -->
+          <div id="auth-error-box" class="auth-error-msg"></div>
+
+          <!-- Campo Nome (visível apenas em cadastro) -->
+          <div class="form-group" id="auth-name-group" style="display: none;">
+            <label class="form-label" for="auth-name-input">Seu Nome ou Apelido *</label>
+            <input type="text" id="auth-name-input" class="form-input" placeholder="Ex: Alex Silva" maxlength="60">
+          </div>
+
+          <!-- Campo E-mail -->
+          <div class="form-group">
+            <label class="form-label" for="auth-email-input">Endereço de E-mail *</label>
+            <input type="email" id="auth-email-input" class="form-input" placeholder="seuemail@exemplo.com" required>
+          </div>
+
+          <!-- Campo Senha -->
+          <div class="form-group">
+            <label class="form-label" for="auth-password-input">Senha *</label>
+            <input type="password" id="auth-password-input" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+            <span class="auth-cloud-badge">
+              ☁️ Sincronização Segura
+            </span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">100% Gratuito</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeAuthModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Entrar na Conta</button>
         </div>
       </form>
     </div>
