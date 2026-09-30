@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chronos — Dashboard de Gestão Pessoal & Rotina</title>
+  <meta name="description" content="Aplicação moderna de gestão pessoal, produtividade, hábitos diários e equilíbrio entre trabalho e bem-estar.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="dashboard">
+
+  <!-- SVG Gradient Defs -->
+  <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+    <linearGradient id="cyanGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </svg>
+
+  <!-- NAVBAR SUPERIOR -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <!-- Logo -->
+      <a href="index.html" class="logo" title="Ir para o Dashboard">
+        <div class="logo-icon-wrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <span class="logo-text">CHRONOS<span>.</span></span>
+      </a>
+
+      <!-- Horário em Tempo Real -->
+      <div class="nav-datetime" id="nav-datetime-box" title="Horário local em tempo real">
+        <span class="datetime-pulse"></span>
+        <span id="nav-live-time" class="time-highlight">--:--</span>
+      </div>
+
+      <!-- Links de Navegação Desktop -->
+      <nav aria-label="Navegação Principal">
+        <ul class="nav-links">
+          <li>
+            <a href="index.html" class="nav-link active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Dashboard
+            </a>
+          </li>
+          <li>
+            <a href="tarefas.html" class="nav-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Tarefas & Kanban
+            </a>
+          </li>
+          <li>
+            <a href="rotina.html" class="nav-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Hábitos & Rotina
+            </a>
+          </li>
+          <li>
+            <a href="calendario.html" class="nav-link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>
+              Calendário & Agenda
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Ações da Navbar -->
+      <div class="nav-actions">
+        <!-- Seletor de Temas de Cores -->
+        <div class="theme-picker" title="Escolha a cor de destaque">
+          <span class="theme-dot active" data-theme="cyan" style="background:#38bdf8;" onclick="switchTheme('cyan')"></span>
+          <span class="theme-dot" data-theme="purple" style="background:#c084fc;" onclick="switchTheme('purple')"></span>
+          <span class="theme-dot" data-theme="emerald" style="background:#34d399;" onclick="switchTheme('emerald')"></span>
+          <span class="theme-dot" data-theme="amber" style="background:#fbbf24;" onclick="switchTheme('amber')"></span>
+          <span class="theme-dot" data-theme="rose" style="background:#fb7185;" onclick="switchTheme('rose')"></span>
+        </div>
+
+        <!-- Atalhos & Notificações -->
+        <button class="btn btn-secondary btn-icon" onclick="openShortcutsModal()" title="Atalhos de teclado (?)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+
+        <!-- Nuvem & Backup -->
+        <button class="btn btn-secondary btn-icon" id="btn-cloud-sync" onclick="openCloudModal()" title="Sincronização em Nuvem (Supabase) & Backup">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        </button>
+
+        <!-- Perfil / Autenticação de Usuário -->
+        <div id="nav-user-profile"></div>
+
+        <button class="btn btn-primary" id="btn-quick-new-task" onclick="openTaskModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Tarefa
+        </button>
+        <button class="mobile-toggle" id="btn-mobile-menu" onclick="toggleMobileMenu()" aria-label="Abrir Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-nav-drawer" id="mobile-drawer">
+      <ul class="mobile-nav-links">
+        <li><a href="index.html" class="nav-link active">🏠 Dashboard</a></li>
+        <li><a href="tarefas.html" class="nav-link">📋 Gerenciador de Tarefas & Kanban</a></li>
+        <li><a href="rotina.html" class="nav-link">🔥 Hábitos & Diário de Rotina</a></li>
+        <li><a href="calendario.html" class="nav-link">📅 Calendário & Agenda Futura</a></li>
+        <li><a href="javascript:void(0)" onclick="toggleMobileMenu(); openCloudModal();" class="nav-link">☁️ Nuvem & Backup</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="main-content">
+    <div class="container">
+      
+      <!-- HERO: BOAS-VINDAS & PROGRESSO GERAL -->
+      <section class="dashboard-hero">
+        <div class="welcome-card">
+          <div>
+            <span class="welcome-tag">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              Controle Diário Integrado
+            </span>
+            <h1 class="welcome-title" id="hero-greeting-text">Bem-vindo!</h1>
+            <p class="welcome-subtitle">
+              Seu painel sincronizado para equilíbrio entre trabalho, lazer, saúde e estudos contínuos.
+            </p>
+          </div>
+
+          <div class="hero-stats-row">
+            <div class="hero-mini-stat">
+              <span class="hero-stat-val">Foco 100%</span>
+              <span class="hero-stat-label">Ritmo de Hoje</span>
+            </div>
+            <div class="hero-mini-stat">
+              <span class="hero-stat-val" id="stat-habit-rate">4/5</span>
+              <span class="hero-stat-label">Hábitos Feitos</span>
+            </div>
+            <div class="hero-mini-stat">
+              <span class="hero-stat-val">3 Períodos</span>
+              <span class="hero-stat-label">Manhã • Tarde • Noite</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROGRESSO GERAL DIÁRIO CIRCULAR -->
+        <div class="progress-card">
+          <div class="progress-circle-wrap">
+            <svg class="progress-svg" viewBox="0 0 140 140">
+              <circle class="progress-bg-circle" cx="70" cy="70" r="60"></circle>
+              <circle class="progress-bar-circle" id="dash-progress-circle" cx="70" cy="70" r="60"></circle>
+            </svg>
+            <div class="progress-percent-label">
+              <span class="percent-num" id="dash-progress-pct">0</span>
+              <span class="percent-unit">% Concluído</span>
+            </div>
+          </div>
+          <h3 class="progress-info-title">Progresso das Tarefas</h3>
+          <p class="progress-info-desc" id="dash-progress-ratio">0 de 0 tarefas finalizadas</p>
+        </div>
+      </section>
+
+      <!-- CARDS DE ESTATÍSTICAS RÁPIDAS (4 COLUNAS) -->
+      <section class="stats-grid" aria-label="Estatísticas Rápidas">
+        <!-- Card 1: Pendentes -->
+        <div class="stat-card">
+          <div class="stat-card-top">
+            <span class="stat-card-label">Tarefas Pendentes</span>
+            <div class="stat-card-icon" style="background: rgba(56, 189, 248, 0.12); color: var(--accent-cyan);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+          </div>
+          <div class="stat-val-row">
+            <span class="stat-card-num" id="stat-pending-count">0</span>
+            <span style="font-size:0.8rem; color:var(--text-secondary);">restantes</span>
+          </div>
+          <p class="stat-card-sub">Distribuídas ao longo do dia</p>
+        </div>
+
+        <!-- Card 2: Concluídas -->
+        <div class="stat-card">
+          <div class="stat-card-top">
+            <span class="stat-card-label">Concluídas Hoje</span>
+            <div class="stat-card-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+          <div class="stat-val-row">
+            <span class="stat-card-num" id="stat-done-count">0</span>
+            <span style="font-size:0.8rem; color:var(--accent-emerald);">finalizadas</span>
+          </div>
+          <p class="stat-card-sub">Excelente consistência diária</p>
+        </div>
+
+        <!-- Card 3: Equilíbrio de Tempo (Trabalho vs Lazer vs Estudos) -->
+        <div class="stat-card" style="grid-column: span 2;">
+          <div class="stat-card-top">
+            <span class="stat-card-label">Distribuição de Atividades (Trabalho vs Lazer vs Estudos)</span>
+            <div class="stat-card-icon" style="background: rgba(168, 85, 247, 0.12); color: var(--accent-purple);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+            </div>
+          </div>
+          <div class="ratio-bar-wrap">
+            <div class="ratio-seg seg-work" id="ratio-seg-work" style="width: 40%;" title="Trabalho"></div>
+            <div class="ratio-seg seg-study" id="ratio-seg-study" style="width: 20%;" title="Estudos"></div>
+            <div class="ratio-seg seg-leisure" id="ratio-seg-leisure" style="width: 25%;" title="Lazer"></div>
+            <div class="ratio-seg seg-other" id="ratio-seg-other" style="width: 15%;" title="Saúde & Pessoal"></div>
+          </div>
+          <div class="ratio-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:var(--cat-trabalho);"></span>Trabalho</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--cat-estudos);"></span>Estudos</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--cat-lazer);"></span>Lazer</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--cat-saude);"></span>Saúde & Pessoal</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TIMELINE DO DIA & WIDGETS LATERAIS -->
+      <section class="dashboard-content-split">
+        <!-- Coluna da Timeline (Manhã, Tarde, Noite) -->
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap; gap:0.75rem;">
+            <div>
+              <h2 class="card-title">
+                <span class="card-title-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 10"/></svg>
+                </span>
+                Timeline do Dia
+              </h2>
+              <p class="card-subtitle" id="timeline-subtitle-date">Tarefas e compromissos segmentados estrategicamente</p>
+            </div>
+            
+            <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+              <div class="timeline-day-filter-group">
+                <button type="button" class="btn btn-secondary btn-sm active" id="btn-timeline-today" onclick="switchDashboardTimelineDate('today')">
+                  Hoje
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-timeline-tomorrow" onclick="switchDashboardTimelineDate('tomorrow')">
+                  Amanhã
+                </button>
+                <input type="date" id="dash-timeline-custom-date" class="form-input" style="padding:0.3rem 0.5rem; font-size:0.75rem; width:130px; height:32px;" onchange="switchDashboardTimelineDate(this.value)" title="Ver tarefas de outra data">
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="window.print()" title="Imprimir ou Salvar Timeline em PDF">
+                🖨️ PDF
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="openTaskModalForCurrentTimeline()" title="Criar tarefa para a data exibida">
+                + Nova Tarefa
+              </button>
+            </div>
+          </div>
+
+          <!-- Período: Manhã -->
+          <div class="timeline-period-group">
+            <div class="period-header">
+              <div class="period-icon-wrap period-morning">🌅</div>
+              <h3 class="period-title">
+                Manhã <span class="period-badge-count" id="count-morning">0</span>
+              </h3>
+            </div>
+            <div class="timeline-tasks-list" id="timeline-morning-list">
+              <!-- Inserido dinamicamente via app.js -->
+            </div>
+          </div>
+
+          <!-- Período: Tarde -->
+          <div class="timeline-period-group">
+            <div class="period-header">
+              <div class="period-icon-wrap period-afternoon">☀️</div>
+              <h3 class="period-title">
+                Tarde <span class="period-badge-count" id="count-afternoon">0</span>
+              </h3>
+            </div>
+            <div class="timeline-tasks-list" id="timeline-afternoon-list">
+              <!-- Inserido dinamicamente via app.js -->
+            </div>
+          </div>
+
+          <!-- Período: Noite -->
+          <div class="timeline-period-group">
+            <div class="period-header">
+              <div class="period-icon-wrap period-night">🌙</div>
+              <h3 class="period-title">
+                Noite & Descompressão <span class="period-badge-count" id="count-night">0</span>
+              </h3>
+            </div>
+            <div class="timeline-tasks-list" id="timeline-night-list">
+              <!-- Inserido dinamicamente via app.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Coluna Lateral: Pomodoro, Hábitos & Insights -->
+        <aside class="side-widgets-col">
+          <!-- Widget: Timer Pomodoro -->
+          <div class="pomodoro-card">
+            <div class="pomodoro-mode-pills">
+              <span class="pomodoro-pill active" data-mode="focus" onclick="Pomodoro.setMode('focus')">Foco (25m)</span>
+              <span class="pomodoro-pill" data-mode="short" onclick="Pomodoro.setMode('short')">Pausa (5m)</span>
+              <span class="pomodoro-pill" data-mode="long" onclick="Pomodoro.setMode('long')">Longa (15m)</span>
+            </div>
+
+            <div class="pomodoro-time-display" id="pomodoro-timer-text">25:00</div>
+
+            <div class="pomodoro-controls">
+              <button class="btn btn-primary btn-sm" id="pomodoro-toggle-btn" onclick="Pomodoro.toggle()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Iniciar
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="Pomodoro.reset()" title="Reiniciar Cronômetro">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+              <button class="ambient-sound-btn" id="pomodoro-ambient-btn" onclick="Pomodoro.toggleAmbientSound()" title="Ruído branco suave de chuva gerado via Web Audio">
+                🌧️ Som Chuva
+              </button>
+              <button class="btn btn-secondary btn-icon btn-sm" onclick="requestNotificationPermission()" title="Habilitar Notificações">
+                🔔
+              </button>
+            </div>
+
+            <div class="pomodoro-cycles-count">
+              Ciclos completados hoje: <strong id="pomodoro-cycles-val" style="color:var(--accent-cyan); font-family:var(--font-mono);">0</strong>
+            </div>
+          </div>
+
+          <!-- Widget: Hábitos de Hoje -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">
+                  <span class="card-title-icon" style="color:#fb923c;">🔥</span>
+                  Hábitos Diários
+                </h3>
+                <p class="card-subtitle">Mantenha sua sequência ativa</p>
+              </div>
+              <a href="rotina.html" class="btn btn-secondary btn-sm" title="Abrir Rastreador Completo">Gerenciar</a>
+            </div>
+            <div class="widget-habit-list" id="mini-habits-list">
+              <!-- Preenchido via app.js -->
+            </div>
+          </div>
+
+          <!-- Widget: Dica de Bem-estar & Equilíbrio -->
+          <div class="card" style="background: linear-gradient(145deg, rgba(22, 32, 50, 0.8), rgba(30, 41, 59, 0.5)); border-color: rgba(99, 102, 241, 0.25);">
+            <div style="display:flex; align-items:center; gap:0.65rem; margin-bottom:0.75rem;">
+              <span style="font-size:1.35rem;">💡</span>
+              <h4 style="font-size:0.95rem; font-weight:700; color:var(--text-primary);">Dica de Equilíbrio</h4>
+            </div>
+            <p style="font-size:0.84rem; color:var(--text-secondary); line-height:1.5; margin-bottom:1rem;">
+              "Produtividade sustentável não é trabalhar sem parar, mas sim alternar blocos de foco intenso com momentos reais de lazer e descanso mental."
+            </p>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--accent-cyan);">
+              <span>Método Pomodoro + Descompressão</span>
+              <span>🌿 Bem-estar</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- FOOTER COM CONTROLES DE BACKUP -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>© 2026 Chronos Personal Hub. Interface moderna em Dark Mode com Vanilla JS & CSS3.</p>
+      
+      <!-- Controles de Backup & Reset -->
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="exportUserDataBackup()" title="Baixar arquivo JSON com todas as tarefas e hábitos">
+          📥 Exportar Backup
+        </button>
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;" title="Restaurar backup JSON">
+          📤 Importar Backup
+          <input type="file" accept=".json" style="display:none;" onchange="importUserDataBackup(this)">
+        </label>
+        <button class="btn btn-danger btn-sm" onclick="resetAllDataFactory()" title="Restaurar dados padrão de fábrica">
+          Resetar Dados
+        </button>
+      </div>
+
+      <div class="footer-links">
+        <a href="index.html">Dashboard</a>
+        <a href="tarefas.html">Tarefas</a>
+        <a href="rotina.html">Rotina & Hábitos</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL: ATALHOS DE TECLADO (?) -->
+  <div class="modal-overlay" id="shortcuts-modal" role="dialog" aria-modal="true">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⌨️ Atalhos de Teclado</h3>
+        <button class="modal-close-btn" onclick="closeShortcutsModal()" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body" style="gap: 0.5rem;">
+        <div class="shortcut-row">
+          <span>Criar Nova Tarefa</span>
+          <span class="shortcut-pill">N</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Iniciar / Pausar Pomodoro</span>
+          <span class="shortcut-pill">P</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Focar na Busca de Tarefas</span>
+          <span class="shortcut-pill">/</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Fechar qualquer Modal</span>
+          <span class="shortcut-pill">ESC</span>
+        </div>
+        <div class="shortcut-row">
+          <span>Abrir este Guia de Atalhos</span>
+          <span class="shortcut-pill">?</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeShortcutsModal()">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVA / EDITAR TAREFA -->
+  <div class="modal-overlay" id="task-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-text">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" color="var(--accent-cyan)"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span id="modal-title-text">Nova Tarefa</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeTaskModal()" aria-label="Fechar modal">✕</button>
+      </div>
+
+      <form id="task-form">
+        <div class="modal-body">
+          <!-- Título -->
+          <div class="form-group">
+            <label class="form-label" for="task-title-input">Título da Atividade *</label>
+            <input type="text" id="task-title-input" class="form-input" placeholder="Ex: Revisar código do módulo de pagamentos" required maxlength="120">
+          </div>
+
+          <!-- Categoria & Prioridade -->
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="task-category-select">Categoria *</label>
+              <select id="task-category-select" class="form-input filter-select">
+                <option value="trabalho">💼 Trabalho</option>
+                <option value="lazer">🎮 Lazer</option>
+                <option value="estudos">📚 Estudos</option>
+                <option value="saude">🏃 Saúde / Exercícios</option>
+                <option value="pessoal">🏠 Pessoal / Família</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="task-priority-select">Prioridade *</label>
+              <select id="task-priority-select" class="form-input filter-select">
+                <option value="alta">🔴 Alta Prioridade</option>
+                <option value="media" selected>🟡 Média Prioridade</option>
+                <option value="baixa">🟢 Baixa Prioridade</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="task-date-input">Data Prevista 📅</label>
+              <input type="date" id="task-date-input" class="form-input">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="task-recurrence-select">Repetição / Recorrência 🔄</label>
+              <select id="task-recurrence-select" class="form-input filter-select">
+                <option value="none" selected>Apenas nesta data (Única)</option>
+                <option value="weekdays">📅 Segunda a Sexta (Dias úteis)</option>
+                <option value="daily">🔁 Todos os dias (Diário)</option>
+                <option value="weekly">📆 Semanal (No mesmo dia)</option>
+                <option value="weekend">🏖️ Finais de Semana (Sáb e Dom)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="task-time-input">Horário Previsto</label>
+              <input type="time" id="task-time-input" class="form-input" value="14:00">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="task-period-select">Período (Automático por Horário) *</label>
+              <select id="task-period-select" class="form-input filter-select">
+                <option value="manha">🌅 Manhã (05:00 - 11:59)</option>
+                <option value="tarde" selected>☀️ Tarde (12:00 - 17:59)</option>
+                <option value="noite">🌙 Noite (18:00 - 04:59)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Status Inicial -->
+          <div class="form-group">
+            <label class="form-label" for="task-status-select">Status Inicial</label>
+            <select id="task-status-select" class="form-input filter-select">
+              <option value="todo" selected>A Fazer</option>
+              <option value="inprogress">Em Andamento</option>
+              <option value="done">Concluído</option>
+            </select>
+          </div>
+
+          <!-- Tags / Etiquetas Customizáveis -->
+          <div class="form-group">
+            <label class="form-label" for="task-tags-input">Tags / Etiquetas (Separadas por vírgula)</label>
+            <input type="text" id="task-tags-input" class="form-input" placeholder="Ex: urgente, backend, reunião">
+          </div>
+
+          <!-- Subtarefas / Checklist -->
+          <div class="form-group">
+            <label class="form-label">Subtarefas / Etapas da Atividade</label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="new-subtask-input" class="form-input" placeholder="Adicionar etapa (ex: Enviar e-mail)...">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addMemorySubtask()">+ Adicionar</button>
+            </div>
+            <div id="modal-subtasks-list" class="subtasks-container"></div>
+          </div>
+
+          <!-- Descrição / Detalhes -->
+          <div class="form-group">
+            <label class="form-label" for="task-desc-input">Notas / Descrição (Opcional)</label>
+            <textarea id="task-desc-input" class="form-input" rows="2" placeholder="Informações adicionais, links ou notas livres..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeTaskModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-task">Salvar Tarefa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AUTENTICAÇÃO (LOGIN & CADASTRO COM E-MAIL E SENHA) -->
+  <div class="modal-overlay" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" color="var(--accent-cyan)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="auth-modal-title">Acessar sua Conta</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeAuthModal()" aria-label="Fechar">✕</button>
+      </div>
+
+      <form id="auth-form">
+        <div class="modal-body">
+          <!-- Abas: Entrar vs Criar Conta -->
+          <div class="auth-tab-buttons">
+            <div class="auth-tab-btn active" id="auth-tab-login" onclick="setAuthTab('login')">Entrar</div>
+            <div class="auth-tab-btn" id="auth-tab-register" onclick="setAuthTab('register')">Criar Nova Conta</div>
+          </div>
+
+          <!-- Mensagem de Erro -->
+          <div id="auth-error-box" class="auth-error-msg"></div>
+
+          <!-- Campo Nome (visível apenas em cadastro) -->
+          <div class="form-group" id="auth-name-group" style="display: none;">
+            <label class="form-label" for="auth-name-input">Seu Nome ou Apelido *</label>
+            <input type="text" id="auth-name-input" class="form-input" placeholder="Ex: Alex Silva" maxlength="60">
+          </div>
+
+          <!-- Campo E-mail -->
+          <div class="form-group">
+            <label class="form-label" for="auth-email-input">Endereço de E-mail *</label>
+            <input type="email" id="auth-email-input" class="form-input" placeholder="seuemail@exemplo.com" required>
+          </div>
+
+          <!-- Campo Senha -->
+          <div class="form-group">
+            <label class="form-label" for="auth-password-input">Senha *</label>
+            <input type="password" id="auth-password-input" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+            <span class="auth-cloud-badge">
+              ☁️ Sincronização Segura
+            </span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">100% Gratuito</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeAuthModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Entrar na Conta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SINCRONIZAÇÃO EM NUVEM & BACKUP -->
+  <div class="modal-overlay" id="cloud-modal" role="dialog" aria-modal="true" aria-labelledby="cloud-modal-title">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--accent-cyan);"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          <span id="cloud-modal-title">Nuvem & Sincronização</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeCloudModal()" aria-label="Fechar">✕</button>
+      </div>
+
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:1.25rem;">
+        <!-- Status de Conexão -->
+        <div class="cloud-status-card" id="cloud-status-card">
+          <div class="cloud-status-header">
+            <span class="cloud-status-dot" id="cloud-status-dot"></span>
+            <span class="cloud-status-text" id="cloud-status-text">Modo Local (Offline)</span>
+          </div>
+          <p class="cloud-status-desc" id="cloud-status-desc">
+            Seus dados estão salvos apenas neste navegador. Conecte ao Supabase para acessar a mesma conta em qualquer celular ou computador.
+          </p>
+        </div>
+
+        <!-- Card de Migração de Conta Local Existente -->
+        <div id="cloud-migrate-card" class="cloud-box" style="display:none; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.06);">
+          <div class="cloud-box-header">
+            <h4 style="color:var(--accent-cyan);">🚀 Migrar Conta Local para a Nuvem</h4>
+            <span class="badge badge-cyan" style="font-size:0.7rem;">Automático</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+            Conta local detectada: <strong id="migrate-user-email" style="color:var(--text-primary);"></strong>.<br>
+            Ao conectar o Supabase, clique abaixo para transferir seu cadastro e tarefas existentes direto para a nuvem.
+          </p>
+          <button type="button" class="btn btn-primary btn-sm" onclick="migrateLocalAccountToCloud()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Transferir Minha Conta e Tarefas para a Nuvem
+          </button>
+        </div>
+
+        <!-- Seção: Supabase (Conexão Permanente) -->
+        <div class="cloud-box">
+          <div class="cloud-box-header">
+            <h4>⚡ Conexão Supabase (Nuvem Automática)</h4>
+            <span class="badge badge-cyan" style="font-size:0.7rem;">Gratuito</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Conecte seu projeto gratuito do Supabase para ter login e banco de dados online permanente.
+          </p>
+
+          <div class="form-group" style="margin-bottom:0.6rem;">
+            <label class="form-label" for="cloud-supabase-url">Project URL</label>
+            <input type="text" id="cloud-supabase-url" class="form-input" placeholder="https://exemplo.supabase.co">
+          </div>
+
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label" for="cloud-supabase-key">Project Anon Key (API pública)</label>
+            <input type="password" id="cloud-supabase-key" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+          </div>
+
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveCloudConfig()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Salvar & Conectar
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cloud-sync-now" onclick="triggerManualCloudSync()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Sincronizar Agora
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-cloud-disconnect" onclick="disconnectCloudConfig()" style="color:var(--accent-rose); display:none;">
+              Desconectar
+            </button>
+          </div>
+
+          <!-- Guia de Instruções Expansível -->
+          <details class="cloud-instructions-details" style="margin-top:0.75rem;">
+            <summary style="cursor:pointer; font-size:0.78rem; color:var(--accent-cyan); font-weight:600;">
+              ℹ️ Como pegar essas chaves no Supabase e criar a tabela (1 min)
+            </summary>
+            <div class="cloud-instructions-content">
+              <ol style="margin:0.5rem 0 0.5rem 1.2rem; font-size:0.75rem; color:var(--text-secondary); line-height:1.5;">
+                <li>Crie uma conta gratuita em <strong><a href="https://supabase.com" target="_blank" rel="noopener" style="color:var(--accent-cyan);">supabase.com</a></strong>.</li>
+                <li>Clique em <strong>"New Project"</strong>.</li>
+                <li>Em <strong>Project Settings > API</strong>, copie a <strong>URL</strong> e a <strong>anon key</strong>.</li>
+                <li>No menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>Run</strong>:</li>
+              </ol>
+              <pre class="cloud-sql-code"><code>create table if not exists chronos_userdata (
+  user_id text primary key,
+  tasks jsonb default '[]'::jsonb,
+  habits jsonb default '[]'::jsonb,
+  reflections jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table chronos_userdata enable row level security;
+create policy "Allow all operations for users" on chronos_userdata for all using (true) with check (true);</code></pre>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.72rem; padding:0.25rem 0.5rem;" onclick="copyCloudSql()">📋 Copiar Código SQL</button>
+            </div>
+          </details>
+        </div>
+
+        <!-- Seção: Backup & Restauração Instantânea (Sem precisar de nada) -->
+        <div class="cloud-box">
+          <div class="cloud-box-header">
+            <h4>💾 Backup Instantâneo em Arquivo (.json)</h4>
+            <span class="badge badge-emerald" style="font-size:0.7rem;">Offline / Sem Configuração</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Baixe um arquivo seguro com todas as suas tarefas, hábitos e configurações para salvar no Google Drive ou restaurar em qualquer navegador.
+          </p>
+
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="exportBackupFile()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Baixar Backup (.json)
+            </button>
+
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer; margin-bottom:0;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Restaurar Backup (.json)
+              <input type="file" id="cloud-restore-file-input" accept=".json" style="display:none;" onchange="importBackupFromFile(event)">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeCloudModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTAINER DE TOASTS -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
