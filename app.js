@@ -14,7 +14,8 @@ const STORAGE_KEYS = {
   INITIALIZED: 'chronos_is_initialized',
   THEME: 'chronos_active_theme',
   USERS: 'chronos_registered_users',
-  SESSION: 'chronos_current_user_session'
+  SESSION: 'chronos_current_user_session',
+  SUPABASE_CONFIG: 'chronos_supabase_config'
 };
 
 // --- DADOS INICIAIS (MOCK DATA) ---
@@ -175,6 +176,7 @@ class ChronosStore {
   saveTasks(tasks) {
     const prefix = this.getUserPrefix();
     localStorage.setItem(prefix + 'tasks', JSON.stringify(tasks));
+    if (window.chronosCloud) window.chronosCloud.queueAutoSync();
   }
 
   addTask(taskData) {
@@ -244,6 +246,7 @@ class ChronosStore {
   saveHabits(habits) {
     const prefix = this.getUserPrefix();
     localStorage.setItem(prefix + 'habits', JSON.stringify(habits));
+    if (window.chronosCloud) window.chronosCloud.queueAutoSync();
   }
 
   addHabit(habitData) {
@@ -314,6 +317,7 @@ class ChronosStore {
     });
     const prefix = this.getUserPrefix();
     localStorage.setItem(prefix + 'reflections', JSON.stringify(list.slice(0, 10)));
+    if (window.chronosCloud) window.chronosCloud.queueAutoSync();
   }
 
   // BACKUP EXPORT & IMPORT
@@ -331,10 +335,13 @@ class ChronosStore {
   importBackupData(jsonString) {
     try {
       const data = JSON.parse(jsonString);
-      if (data.tasks) this.saveTasks(data.tasks);
-      if (data.habits) this.saveHabits(data.habits);
+      if (Array.isArray(data.tasks)) this.saveTasks(data.tasks);
+      if (Array.isArray(data.habits)) this.saveHabits(data.habits);
       if (data.currentReflection) this.saveCurrentReflection(data.currentReflection);
-      if (data.reflections) localStorage.setItem(STORAGE_KEYS.REFLECTIONS, JSON.stringify(data.reflections));
+      if (Array.isArray(data.reflections)) {
+        const prefix = this.getUserPrefix();
+        localStorage.setItem(prefix + 'reflections', JSON.stringify(data.reflections));
+      }
       return true;
     } catch {
       return false;
@@ -426,8 +433,244 @@ class ChronosStore {
   }
 }
 
-// Instância global do banco local
+// ==========================================================================
+// MÓDULO: SINCRONIZAÇÃO EM NUVEM (SUPABASE) & BACKUP
+// ==========================================================================
+class ChronosCloudManager {
+  constructor(store) {
+    this.store = store;
+    this.client = null;
+    this.isConfigured = false;
+    this.isSyncing = false;
+    this.syncTimeout = null;
+    this.init();
+  }
+
+  getConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUPABASE_CONFIG));
+      if (saved && saved.url && saved.key) return saved;
+    } catch {}
+    // Credenciais padrão da nuvem Supabase
+    return {
+      url: 'https://uzzaifelwjsitqmaaifo.supabase.co',
+      key: 'sb_publishable_Vg45ZPXTHvQzy6gXwClsIg_Nh9EE22g'
+    };
+  }
+
+  setConfig(url, key) {
+    if (url && key) {
+      localStorage.setItem(STORAGE_KEYS.SUPABASE_CONFIG, JSON.stringify({ url: url.trim(), key: key.trim() }));
+      this.init();
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SUPABASE_CONFIG);
+      this.client = null;
+      this.isConfigured = false;
+      this.updateStatusUI();
+    }
+  }
+
+  init() {
+    const config = this.getConfig();
+    if (config && config.url && config.key && window.supabase && typeof window.supabase.createClient === 'function') {
+      try {
+        this.client = window.supabase.createClient(config.url, config.key);
+        this.isConfigured = true;
+      } catch (err) {
+        console.warn('Erro ao inicializar cliente Supabase:', err);
+        this.client = null;
+        this.isConfigured = false;
+      }
+    } else {
+      this.client = null;
+      this.isConfigured = false;
+    }
+    this.updateStatusUI();
+  }
+
+  async checkInitialSession() {
+    if (!this.client || !this.isConfigured) return;
+    try {
+      const { data, error } = await this.client.auth.getSession();
+      if (error) {
+        console.warn('Erro ao checar sessão Supabase:', error);
+        return;
+      }
+      if (data && data.session && data.session.user) {
+        const u = data.session.user;
+        const userName = u.user_metadata?.name || u.email.split('@')[0];
+        const userObj = {
+          id: u.id,
+          name: userName,
+          email: u.email,
+          isCloud: true
+        };
+        this.store.setCurrentSession(userObj);
+        updateUserSessionUI();
+        await this.pullFromCloud();
+        refreshActivePage();
+      }
+    } catch (err) {
+      console.warn('Falha ao verificar sessão inicial do Supabase:', err);
+    }
+  }
+
+  async pushToCloud() {
+    if (!this.client || !this.isConfigured) return;
+    const session = this.store.getCurrentSession();
+    if (!session || !session.id) return;
+
+    try {
+      this.isSyncing = true;
+      this.updateStatusUI('syncing');
+
+      const payload = {
+        user_id: session.id,
+        tasks: this.store.getTasks(),
+        habits: this.store.getHabits(),
+        reflections: this.store.getPastReflections(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await this.client
+        .from('chronos_userdata')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        console.warn('Erro no upload para Supabase:', error);
+        this.updateStatusUI('error');
+      } else {
+        this.updateStatusUI('online');
+      }
+    } catch (err) {
+      console.warn('Exceção ao subir dados para Supabase:', err);
+      this.updateStatusUI('error');
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  async pullFromCloud() {
+    if (!this.client || !this.isConfigured) return false;
+    const session = this.store.getCurrentSession();
+    if (!session || !session.id) return false;
+
+    try {
+      this.isSyncing = true;
+      this.updateStatusUI('syncing');
+
+      const { data, error } = await this.client
+        .from('chronos_userdata')
+        .select('*')
+        .eq('user_id', session.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Erro no download do Supabase:', error);
+        this.updateStatusUI('error');
+        return false;
+      }
+
+      if (data) {
+        if (Array.isArray(data.tasks)) this.store.saveTasks(data.tasks);
+        if (Array.isArray(data.habits)) this.store.saveHabits(data.habits);
+        if (Array.isArray(data.reflections)) {
+          const prefix = this.store.getUserPrefix();
+          localStorage.setItem(prefix + 'reflections', JSON.stringify(data.reflections));
+        }
+        this.updateStatusUI('online');
+        return true;
+      } else {
+        // Usuário novo na nuvem: envia dados existentes
+        await this.pushToCloud();
+        return true;
+      }
+    } catch (err) {
+      console.warn('Exceção ao puxar dados da nuvem:', err);
+      this.updateStatusUI('error');
+      return false;
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  queueAutoSync() {
+    if (!this.client || !this.isConfigured) return;
+    const session = this.store.getCurrentSession();
+    if (!session || !session.id) return;
+
+    if (this.syncTimeout) clearTimeout(this.syncTimeout);
+    this.syncTimeout = setTimeout(() => {
+      this.pushToCloud();
+    }, 1500);
+  }
+
+  updateStatusUI(state = null) {
+    const dot = document.getElementById('cloud-status-dot');
+    const text = document.getElementById('cloud-status-text');
+    const desc = document.getElementById('cloud-status-desc');
+    const card = document.getElementById('cloud-status-card');
+    const disconnectBtn = document.getElementById('btn-cloud-disconnect');
+    const navCloudBtn = document.getElementById('btn-cloud-sync');
+
+    if (!dot || !text) return;
+
+    if (this.isConfigured) {
+      if (disconnectBtn) disconnectBtn.style.display = 'inline-flex';
+      if (card) {
+        card.classList.remove('error');
+        card.classList.add('connected');
+      }
+
+      if (state === 'syncing') {
+        dot.className = 'cloud-status-dot syncing';
+        text.textContent = 'Sincronizando com a Nuvem...';
+        if (desc) desc.textContent = 'Gravando alterações no seu banco PostgreSQL do Supabase.';
+      } else if (state === 'error') {
+        dot.className = 'cloud-status-dot';
+        dot.style.background = 'var(--accent-rose)';
+        dot.style.boxShadow = '0 0 8px var(--accent-rose)';
+        if (card) {
+          card.classList.remove('connected');
+          card.classList.add('error');
+        }
+        text.textContent = 'Erro ao Sincronizar na Nuvem';
+        if (desc) desc.textContent = 'Atenção: Verifique se executou o script SQL no Supabase SQL Editor para criar a tabela.';
+      } else {
+        dot.className = 'cloud-status-dot online';
+        dot.style.background = '';
+        dot.style.boxShadow = '';
+        text.textContent = '🟢 Nuvem Conectada (Supabase Ativo)';
+        if (desc) desc.textContent = 'Seus dados e sessões estão salvos na nuvem e sincronizam em qualquer computador ou celular.';
+      }
+
+      if (navCloudBtn) {
+        navCloudBtn.style.borderColor = 'var(--accent-emerald)';
+        navCloudBtn.style.color = 'var(--accent-emerald)';
+      }
+    } else {
+      if (disconnectBtn) disconnectBtn.style.display = 'none';
+      if (card) {
+        card.classList.remove('connected', 'error');
+      }
+      dot.className = 'cloud-status-dot';
+      dot.style.background = '';
+      dot.style.boxShadow = '';
+      text.textContent = '🟡 Modo Local (Armazenado no Navegador)';
+      if (desc) desc.textContent = 'Seus dados estão salvos apenas neste navegador. Conecte ao Supabase para acessar a mesma conta em qualquer celular ou computador.';
+
+      if (navCloudBtn) {
+        navCloudBtn.style.borderColor = '';
+        navCloudBtn.style.color = '';
+      }
+    }
+  }
+}
+
+// Instância global do banco local e do gerenciador na nuvem
 const store = new ChronosStore();
+const chronosCloud = new ChronosCloudManager(store);
+window.chronosCloud = chronosCloud;
 
 // --- NOTIFICAÇÕES TOAST ELEGANTE ---
 function showToast(message, type = 'success') {
@@ -1945,11 +2188,12 @@ function setAuthTab(tab) {
   }
 }
 
-function handleAuthSubmit(e) {
+async function handleAuthSubmit(e) {
   e.preventDefault();
   const email = document.getElementById('auth-email-input').value.trim();
   const password = document.getElementById('auth-password-input').value;
   const errorBox = document.getElementById('auth-error-box');
+  const submitBtn = document.getElementById('auth-submit-btn');
 
   if (!email || !password) {
     showAuthError('Por favor, preencha todos os campos obrigatórios.');
@@ -1961,6 +2205,84 @@ function handleAuthSubmit(e) {
     return;
   }
 
+  // --- SE ESTIVER CONECTADO AO SUPABASE ---
+  if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+    const originalText = submitBtn ? submitBtn.textContent : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processando na nuvem...';
+    }
+
+    try {
+      if (currentAuthTab === 'register') {
+        const name = document.getElementById('auth-name-input').value.trim();
+        if (!name) {
+          showAuthError('Por favor, informe seu nome completo ou apelido.');
+          return;
+        }
+
+        const { data, error } = await chronosCloud.client.auth.signUp({
+          email: email,
+          password: password,
+          options: { data: { name: name } }
+        });
+
+        if (error) {
+          showAuthError(error.message);
+          return;
+        }
+
+        const userObj = {
+          id: data.user.id,
+          name: name,
+          email: email,
+          isCloud: true
+        };
+        store.setCurrentSession(userObj);
+        await chronosCloud.pushToCloud();
+        showToast(`Bem-vindo(a), ${name}! Conta criada na nuvem com sucesso.`, 'success');
+        closeAuthModal();
+        updateUserSessionUI();
+        refreshActivePage();
+        triggerConfetti();
+      } else {
+        const { data, error } = await chronosCloud.client.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+
+        if (error) {
+          showAuthError('E-mail ou senha incorretos na nuvem Supabase.');
+          return;
+        }
+
+        const u = data.user;
+        const userName = u.user_metadata?.name || email.split('@')[0];
+        const userObj = {
+          id: u.id,
+          name: userName,
+          email: u.email,
+          isCloud: true
+        };
+        store.setCurrentSession(userObj);
+        await chronosCloud.pullFromCloud();
+        showToast(`Olá novamente, ${userName}! Dados sincronizados da nuvem.`, 'success');
+        closeAuthModal();
+        updateUserSessionUI();
+        refreshActivePage();
+      }
+    } catch (err) {
+      showAuthError('Falha de conexão com a nuvem: ' + err.message);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    }
+    return;
+  }
+
+  // --- SE ESTIVER EM MODO LOCAL ---
   if (currentAuthTab === 'register') {
     const name = document.getElementById('auth-name-input').value.trim();
     if (!name) {
@@ -1974,7 +2296,7 @@ function handleAuthSubmit(e) {
       return;
     }
 
-    showToast(`Bem-vindo(a), ${res.user.name}! Conta criada com sucesso.`, 'success');
+    showToast(`Bem-vindo(a), ${res.user.name}! Conta criada localmente. (Clique em ☁️ para nuvem)`, 'success');
     closeAuthModal();
     updateUserSessionUI();
     refreshActivePage();
@@ -1986,7 +2308,7 @@ function handleAuthSubmit(e) {
       return;
     }
 
-    showToast(`Olá novamente, ${res.user.name}! Login realizado.`, 'success');
+    showToast(`Olá novamente, ${res.user.name}! Login local realizado.`, 'success');
     closeAuthModal();
     updateUserSessionUI();
     refreshActivePage();
@@ -2001,13 +2323,269 @@ function showAuthError(msg) {
   }
 }
 
-function handleUserLogout() {
+async function handleUserLogout() {
   if (confirm('Deseja realmente sair da sua conta?')) {
+    if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+      try {
+        await chronosCloud.client.auth.signOut();
+      } catch (err) {
+        console.warn('Erro ao deslogar do Supabase:', err);
+      }
+    }
     store.logoutUser();
     showToast('Você saiu da sua conta.', 'info');
     updateUserSessionUI();
     refreshActivePage();
   }
+}
+
+// ==========================================================================
+// FUNÇÕES DE INTERFACE: MODAL DE NUVEM & BACKUP
+// ==========================================================================
+function openCloudModal() {
+  const modal = document.getElementById('cloud-modal');
+  if (!modal) return;
+
+  const config = chronosCloud.getConfig();
+  const urlInput = document.getElementById('cloud-supabase-url');
+  const keyInput = document.getElementById('cloud-supabase-key');
+
+  if (urlInput && config) urlInput.value = config.url || '';
+  if (keyInput && config) keyInput.value = config.key || '';
+
+  // Verificar se há conta local para oferecer migração imediata
+  const migrateCard = document.getElementById('cloud-migrate-card');
+  const migrateEmail = document.getElementById('migrate-user-email');
+  const session = store.getCurrentSession();
+  const localUsers = store.getRegisteredUsers();
+
+  if (migrateCard) {
+    if (session && !session.isCloud) {
+      migrateCard.style.display = 'block';
+      if (migrateEmail) migrateEmail.textContent = session.email || session.name;
+    } else if (!session && localUsers.length > 0) {
+      migrateCard.style.display = 'block';
+      if (migrateEmail) migrateEmail.textContent = localUsers[localUsers.length - 1].email;
+    } else {
+      migrateCard.style.display = 'none';
+    }
+  }
+
+  chronosCloud.updateStatusUI();
+  modal.classList.add('open');
+}
+
+async function migrateLocalAccountToCloud() {
+  if (!chronosCloud.isConfigured || !chronosCloud.client) {
+    showToast('Configure a URL e a Anon Key do Supabase acima e clique em "Salvar & Conectar" primeiro.', 'error');
+    return;
+  }
+
+  const localUsers = store.getRegisteredUsers();
+  let session = store.getCurrentSession();
+  let localUser = null;
+
+  if (session && !session.isCloud) {
+    localUser = localUsers.find(u => u.id === session.id || u.email === session.email);
+  }
+  if (!localUser && localUsers.length > 0) {
+    localUser = localUsers[localUsers.length - 1];
+  }
+
+  if (!localUser) {
+    showToast('Nenhum cadastro local encontrado para migrar.', 'error');
+    return;
+  }
+
+  let rawPassword = '';
+  try {
+    rawPassword = atob(localUser.password);
+  } catch (e) {
+    rawPassword = '';
+  }
+
+  if (!rawPassword) {
+    const promptPass = prompt(`Digite a senha da conta ${localUser.email} para salvar na nuvem:`);
+    if (!promptPass) return;
+    rawPassword = promptPass;
+  }
+
+  showToast('Migrando conta e tarefas para o Supabase...', 'info');
+
+  try {
+    const { data, error } = await chronosCloud.client.auth.signUp({
+      email: localUser.email,
+      password: rawPassword,
+      options: { data: { name: localUser.name } }
+    });
+
+    let userId = data?.user?.id;
+
+    if (error) {
+      const loginRes = await chronosCloud.client.auth.signInWithPassword({
+        email: localUser.email,
+        password: rawPassword
+      });
+      if (loginRes.error) {
+        showToast('Erro ao criar conta na nuvem: ' + (error.message || loginRes.error.message), 'error');
+        return;
+      }
+      userId = loginRes.data.user.id;
+    }
+
+    if (!userId) {
+      showToast('Conta criada! Verifique se seu projeto do Supabase exige confirmação de e-mail.', 'info');
+      return;
+    }
+
+    const newSession = {
+      id: userId,
+      name: localUser.name,
+      email: localUser.email,
+      isCloud: true
+    };
+    store.setCurrentSession(newSession);
+
+    // Envia todas as tarefas, hábitos e reflexões locais para a nuvem
+    await chronosCloud.pushToCloud();
+
+    showToast(`Parabéns! Sua conta (${localUser.email}) e suas tarefas foram migradas para a nuvem!`, 'success');
+    closeCloudModal();
+    updateUserSessionUI();
+    refreshActivePage();
+    triggerConfetti();
+  } catch (err) {
+    showToast('Falha na migração: ' + err.message, 'error');
+  }
+}
+
+function closeCloudModal() {
+  const modal = document.getElementById('cloud-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function saveCloudConfig() {
+  const urlInput = document.getElementById('cloud-supabase-url');
+  const keyInput = document.getElementById('cloud-supabase-key');
+
+  const url = urlInput ? urlInput.value.trim() : '';
+  const key = keyInput ? keyInput.value.trim() : '';
+
+  if (!url || !key) {
+    showToast('Preencha a URL e a Anon Key do Supabase.', 'error');
+    return;
+  }
+
+  if (!url.startsWith('http')) {
+    showToast('A URL deve começar com https://', 'error');
+    return;
+  }
+
+  chronosCloud.setConfig(url, key);
+
+  if (chronosCloud.isConfigured) {
+    showToast('Conectando ao Supabase...', 'info');
+    const session = store.getCurrentSession();
+    if (session) {
+      await chronosCloud.pushToCloud();
+    }
+    showToast('Nuvem Supabase conectada com sucesso!', 'success');
+  } else {
+    showToast('Não foi possível conectar. Verifique as credenciais.', 'error');
+  }
+}
+
+function disconnectCloudConfig() {
+  if (confirm('Deseja desconectar da nuvem Supabase? Os dados continuarão salvos no navegador.')) {
+    chronosCloud.setConfig('', '');
+    const urlInput = document.getElementById('cloud-supabase-url');
+    const keyInput = document.getElementById('cloud-supabase-key');
+    if (urlInput) urlInput.value = '';
+    if (keyInput) keyInput.value = '';
+    showToast('Nuvem desconectada. Modo local ativo.', 'info');
+  }
+}
+
+async function triggerManualCloudSync() {
+  if (!chronosCloud.isConfigured) {
+    showToast('Configure a URL e a Anon Key do Supabase primeiro.', 'error');
+    return;
+  }
+  showToast('Sincronizando com a nuvem...', 'info');
+  await chronosCloud.pushToCloud();
+  await chronosCloud.pullFromCloud();
+  refreshActivePage();
+  showToast('Sincronização concluída com sucesso!', 'success');
+}
+
+function copyCloudSql() {
+  const sql = `create table if not exists chronos_userdata (
+  user_id text primary key,
+  tasks jsonb default '[]'::jsonb,
+  habits jsonb default '[]'::jsonb,
+  reflections jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table chronos_userdata enable row level security;
+create policy "Allow all operations for users" on chronos_userdata for all using (true) with check (true);`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(sql).then(() => {
+      showToast('Código SQL copiado! Cole no SQL Editor do Supabase.', 'success');
+    }).catch(() => {
+      fallbackCopyText(sql);
+    });
+  } else {
+    fallbackCopyText(sql);
+  }
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  showToast('Código SQL copiado para a área de transferência!', 'success');
+}
+
+function exportBackupFile() {
+  const dataStr = store.exportBackupData();
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `chronos_backup_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup (.json) baixado com sucesso! Guarde seu arquivo.', 'success');
+}
+
+function importBackupFromFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const content = e.target.result;
+    const success = store.importBackupData(content);
+    if (success) {
+      showToast('Backup restaurado com sucesso!', 'success');
+      closeCloudModal();
+      refreshActivePage();
+      if (chronosCloud && chronosCloud.isConfigured) {
+        chronosCloud.pushToCloud();
+      }
+    } else {
+      showToast('Arquivo de backup inválido ou corrompido.', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
 }
 
 function updateUserSessionUI() {
@@ -2301,6 +2879,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const shortcutsModal = document.getElementById('shortcuts-modal');
     if (e.target === shortcutsModal) closeShortcutsModal();
+
+    const cloudModal = document.getElementById('cloud-modal');
+    if (e.target === cloudModal) closeCloudModal();
+
+    const authModal = document.getElementById('auth-modal');
+    if (e.target === authModal) closeAuthModal();
   });
 
   // Setup de Drag & Drop no Kanban
@@ -2316,6 +2900,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Atualizar estado de sessão do usuário
   updateUserSessionUI();
+
+  // Inicializar e checar nuvem Supabase
+  if (window.chronosCloud) {
+    window.chronosCloud.updateStatusUI();
+    window.chronosCloud.checkInitialSession();
+  }
 
   // Render inicial de acordo com a página atual
   refreshActivePage();

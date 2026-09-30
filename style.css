@@ -2485,3 +2485,112 @@ main.main-content {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   ESTILOS DE NUVEM, SINCRONIZAÇÃO E BACKUP
+   ========================================================================== */
+.cloud-status-card {
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--trans-fast);
+}
+
+.cloud-status-card.connected {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.cloud-status-card.error {
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.06);
+}
+
+.cloud-status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+}
+
+.cloud-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.cloud-status-dot.online {
+  background: var(--accent-emerald);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.cloud-status-dot.syncing {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+  animation: pulse 1s infinite alternate;
+}
+
+.cloud-status-text {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.cloud-status-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.cloud-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.cloud-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.cloud-box-header h4 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cloud-instructions-details {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0.6rem 0.8rem;
+}
+
+.cloud-instructions-content {
+  margin-top: 0.5rem;
+}
+
+.cloud-sql-code {
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xs);
+  padding: 0.6rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  color: #38bdf8;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+  user-select: all;
+}
+

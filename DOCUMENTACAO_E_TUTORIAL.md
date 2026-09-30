@@ -166,4 +166,47 @@ Você pode controlar o sistema sem tirar as mãos do teclado:
 
 ---
 
+## ☁️ Como Deixar Salvo na Nuvem & Acessar no Celular/PC
+
+### 1. Conexão com Supabase (Banco de Dados e Contas Online Grátis)
+Para sincronizar suas contas, tarefas e hábitos automaticamente entre seu computador e celular:
+1. Clique no ícone de nuvem **`☁️`** na barra superior do site.
+2. Crie uma conta gratuita em [supabase.com](https://supabase.com).
+3. No painel do Supabase, clique em **"New Project"** e defina um nome (ex: *Chronos*).
+4. Vá em **Project Settings > API** e copie a **Project URL** e a **anon public key**.
+5. No menu lateral esquerdo do Supabase, clique em **SQL Editor**, cole o código abaixo e clique em **Run**:
+```sql
+create table if not exists chronos_userdata (
+  user_id text primary key,
+  tasks jsonb default '[]'::jsonb,
+  habits jsonb default '[]'::jsonb,
+  reflections jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table chronos_userdata enable row level security;
+create policy "Allow all operations for users" on chronos_userdata for all using (true) with check (true);
+```
+6. Volte ao site do Chronos, cole a **URL** e a **Anon Key** no modal da nuvem e clique em **"Salvar & Conectar"**.
+7. Pronto! A bolinha ficará verde (**🟢 Nuvem Conectada**). A partir de agora, qualquer conta criada ou tarefa editada é salva nos servidores na nuvem em tempo real!
+
+---
+
+### 2. Backup e Restauração em 1 Clique (Offline / Sem Cadastro)
+Se não quiser criar contas na nuvem agora, você pode guardar seus dados em arquivo:
+- Clique no ícone **`☁️`** e clique em **"Baixar Backup (.json)"**.
+- Um arquivo leve com todas as suas tarefas e hábitos será baixado.
+- Você pode guardar esse arquivo no seu Google Drive, WhatsApp ou pen-drive.
+- Para restaurar seus dados em qualquer navegador ou computador, basta abrir o site, clicar no ícone **`☁️`**, selecionar **"Restaurar Backup (.json)"** e escolher o arquivo.
+
+---
+
+### 3. Publicar o Site na Web com Link Gratuito (Vercel ou Netlify)
+Para abrir seu Chronos no celular ou em qualquer lugar como um aplicativo de verdade:
+1. Crie uma conta gratuita em [vercel.com](https://vercel.com) ou [netlify.com](https://netlify.com).
+2. Conecte sua conta do GitHub ou simplesmente arraste a pasta do projeto para o painel.
+3. Você receberá um link público seguro (ex: `https://meu-chronos.vercel.app`).
+4. Abra esse link no celular, clique em **"Adicionar à Tela Inicial"** no navegador e ele se transformará em um app com ícone próprio!
+
+---
+
 *Chronos — Desenvolvido com foco em velocidade, autonomia e design moderno.*

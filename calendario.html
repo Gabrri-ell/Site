@@ -76,6 +76,11 @@
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </button>
 
+        <!-- Nuvem & Backup -->
+        <button class="btn btn-secondary btn-icon" id="btn-cloud-sync" onclick="openCloudModal()" title="Sincronização em Nuvem (Supabase) & Backup">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        </button>
+
         <!-- Perfil / Autenticação de Usuário -->
         <div id="nav-user-profile"></div>
 
@@ -96,6 +101,7 @@
         <li><a href="tarefas.html" class="nav-link">📋 Gerenciador de Tarefas & Kanban</a></li>
         <li><a href="rotina.html" class="nav-link">🔥 Hábitos & Diário de Rotina</a></li>
         <li><a href="calendario.html" class="nav-link active">📅 Calendário & Agenda Futura</a></li>
+        <li><a href="javascript:void(0)" onclick="toggleMobileMenu(); openCloudModal();" class="nav-link">☁️ Nuvem & Backup</a></li>
       </ul>
     </div>
   </header>
@@ -371,10 +377,141 @@
     </div>
   </div>
 
+  <!-- MODAL: SINCRONIZAÇÃO EM NUVEM & BACKUP -->
+  <div class="modal-overlay" id="cloud-modal" role="dialog" aria-modal="true" aria-labelledby="cloud-modal-title">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--accent-cyan);"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          <span id="cloud-modal-title">Nuvem & Sincronização</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeCloudModal()" aria-label="Fechar">✕</button>
+      </div>
+
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:1.25rem;">
+        <!-- Status de Conexão -->
+        <div class="cloud-status-card" id="cloud-status-card">
+          <div class="cloud-status-header">
+            <span class="cloud-status-dot" id="cloud-status-dot"></span>
+            <span class="cloud-status-text" id="cloud-status-text">Modo Local (Offline)</span>
+          </div>
+          <p class="cloud-status-desc" id="cloud-status-desc">
+            Seus dados estão salvos apenas neste navegador. Conecte ao Supabase para acessar a mesma conta em qualquer celular ou computador.
+          </p>
+        </div>
+
+        <!-- Card de Migração de Conta Local Existente -->
+        <div id="cloud-migrate-card" class="cloud-box" style="display:none; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.06);">
+          <div class="cloud-box-header">
+            <h4 style="color:var(--accent-cyan);">🚀 Migrar Conta Local para a Nuvem</h4>
+            <span class="badge badge-cyan" style="font-size:0.7rem;">Automático</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+            Conta local detectada: <strong id="migrate-user-email" style="color:var(--text-primary);"></strong>.<br>
+            Ao conectar o Supabase, clique abaixo para transferir seu cadastro e tarefas existentes direto para a nuvem.
+          </p>
+          <button type="button" class="btn btn-primary btn-sm" onclick="migrateLocalAccountToCloud()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Transferir Minha Conta e Tarefas para a Nuvem
+          </button>
+        </div>
+
+        <!-- Seção: Supabase (Conexão Permanente) -->
+        <div class="cloud-box">
+          <div class="cloud-box-header">
+            <h4>⚡ Conexão Supabase (Nuvem Automática)</h4>
+            <span class="badge badge-cyan" style="font-size:0.7rem;">Gratuito</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Conecte seu projeto gratuito do Supabase para ter login e banco de dados online permanente.
+          </p>
+
+          <div class="form-group" style="margin-bottom:0.6rem;">
+            <label class="form-label" for="cloud-supabase-url">Project URL</label>
+            <input type="text" id="cloud-supabase-url" class="form-input" placeholder="https://exemplo.supabase.co">
+          </div>
+
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label" for="cloud-supabase-key">Project Anon Key (API pública)</label>
+            <input type="password" id="cloud-supabase-key" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+          </div>
+
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveCloudConfig()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Salvar & Conectar
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cloud-sync-now" onclick="triggerManualCloudSync()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Sincronizar Agora
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-cloud-disconnect" onclick="disconnectCloudConfig()" style="color:var(--accent-rose); display:none;">
+              Desconectar
+            </button>
+          </div>
+
+          <!-- Guia de Instruções Expansível -->
+          <details class="cloud-instructions-details" style="margin-top:0.75rem;">
+            <summary style="cursor:pointer; font-size:0.78rem; color:var(--accent-cyan); font-weight:600;">
+              ℹ️ Como pegar essas chaves no Supabase e criar a tabela (1 min)
+            </summary>
+            <div class="cloud-instructions-content">
+              <ol style="margin:0.5rem 0 0.5rem 1.2rem; font-size:0.75rem; color:var(--text-secondary); line-height:1.5;">
+                <li>Crie uma conta gratuita em <strong><a href="https://supabase.com" target="_blank" rel="noopener" style="color:var(--accent-cyan);">supabase.com</a></strong>.</li>
+                <li>Clique em <strong>"New Project"</strong>.</li>
+                <li>Em <strong>Project Settings > API</strong>, copie a <strong>URL</strong> e a <strong>anon key</strong>.</li>
+                <li>No menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>Run</strong>:</li>
+              </ol>
+              <pre class="cloud-sql-code"><code>create table if not exists chronos_userdata (
+  user_id text primary key,
+  tasks jsonb default '[]'::jsonb,
+  habits jsonb default '[]'::jsonb,
+  reflections jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table chronos_userdata enable row level security;
+create policy "Allow all operations for users" on chronos_userdata for all using (true) with check (true);</code></pre>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.72rem; padding:0.25rem 0.5rem;" onclick="copyCloudSql()">📋 Copiar Código SQL</button>
+            </div>
+          </details>
+        </div>
+
+        <!-- Seção: Backup & Restauração Instantânea (Sem precisar de nada) -->
+        <div class="cloud-box">
+          <div class="cloud-box-header">
+            <h4>💾 Backup Instantâneo em Arquivo (.json)</h4>
+            <span class="badge badge-emerald" style="font-size:0.7rem;">Offline / Sem Configuração</span>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Baixe um arquivo seguro com todas as suas tarefas, hábitos e configurações para salvar no Google Drive ou restaurar em qualquer navegador.
+          </p>
+
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="exportBackupFile()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Baixar Backup (.json)
+            </button>
+
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer; margin-bottom:0;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Restaurar Backup (.json)
+              <input type="file" id="cloud-restore-file-input" accept=".json" style="display:none;" onchange="importBackupFromFile(event)">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeCloudModal()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-  <!-- SCRIPT PRINCIPAL -->
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>
