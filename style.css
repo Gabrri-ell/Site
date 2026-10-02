@@ -1,30 +1,31 @@
 /* ==========================================================================
    CHRONOS / AURA ROUTINE - DESIGN SYSTEM & STYLESHEET
-   Paleta: Dark Mode Frio, Glassmorphism, Acentos Elétricos e Tipografia Moderna
+   Paleta: Dark/Light Mode Nativo, Glassmorphism, Acentos Elétricos e Tipografia Moderna
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* --- VARIÁVEIS CSS GLOBAIS --- */
-:root {
+/* --- VARIÁVEIS CSS GLOBAIS (MODO ESCURO POR PADRÃO) --- */
+:root,
+[data-mode="dark"] {
   /* Cores de Fundo e Superfícies (Tons frios / ardósia escuro) */
-  --bg-deep: #0a0e17;
+  --bg-deep: #090d16;
   --bg-main: #0f172a;
-  --bg-surface: #162032;
-  --bg-surface-elevated: #1e293b;
-  --bg-surface-hover: #27354a;
-  --bg-glass: rgba(22, 32, 50, 0.72);
-  --bg-glass-card: rgba(30, 41, 59, 0.65);
-  --bg-glass-modal: rgba(15, 23, 42, 0.88);
+  --bg-surface: #141d2e;
+  --bg-surface-elevated: #1a253a;
+  --bg-surface-hover: #223049;
+  --bg-glass: rgba(18, 26, 42, 0.78);
+  --bg-glass-card: rgba(22, 32, 51, 0.72);
+  --bg-glass-modal: rgba(13, 20, 34, 0.94);
 
   /* Bordas e Divisórias */
-  --border-subtle: rgba(51, 65, 85, 0.4);
-  --border-strong: #334155;
+  --border-subtle: rgba(56, 75, 102, 0.35);
+  --border-strong: #334460;
   --border-glow: rgba(56, 189, 248, 0.35);
 
-  /* Cores de Acento */
+  /* Cores de Acento Padrão (Ciano Elétrico) */
   --accent-cyan: #38bdf8;
-  --accent-cyan-glow: rgba(56, 189, 248, 0.25);
+  --accent-cyan-glow: rgba(56, 189, 248, 0.28);
   --accent-blue: #0ea5e9;
   --accent-indigo: #6366f1;
   --accent-indigo-glow: rgba(99, 102, 241, 0.25);
@@ -50,15 +51,16 @@
   --text-inverse: #0a0e17;
 
   /* Fontes */
-  --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-main: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Sombras & Efeitos */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
-  --shadow-cyan: 0 0 25px rgba(56, 189, 248, 0.2);
-  --shadow-indigo: 0 0 25px rgba(99, 102, 241, 0.2);
+  /* Sombras & Efeitos Neo-mórficos Suaves */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-cyan: 0 0 25px rgba(56, 189, 248, 0.25);
+  --shadow-indigo: 0 0 25px rgba(99, 102, 241, 0.25);
 
   /* Raios de borda */
   --radius-xs: 6px;
@@ -71,6 +73,84 @@
   --trans-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   --trans-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   --trans-bounce: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* --- MODO CLARO NATIVO (LIGHT MODE) --- */
+[data-mode="light"],
+body.theme-light {
+  /* Cores de Fundo e Superfícies (Tons suaves e nítidos) */
+  --bg-deep: #f8fafc;
+  --bg-main: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ffffff;
+  --bg-surface-hover: #eef2f6;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass-card: rgba(255, 255, 255, 0.88);
+  --bg-glass-modal: rgba(255, 255, 255, 0.96);
+
+  /* Bordas e Divisórias */
+  --border-subtle: rgba(203, 213, 225, 0.75);
+  --border-strong: #cbd5e1;
+  --border-glow: rgba(14, 165, 233, 0.3);
+
+  /* Tipografia & Cores de Texto */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  /* Sombras Suaves e Refinadas (Clean Neo-morphism) */
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 16px 38px -6px rgba(15, 23, 42, 0.12), 0 6px 14px -2px rgba(15, 23, 42, 0.06);
+  --shadow-cyan: 0 0 20px rgba(14, 165, 233, 0.18);
+  --shadow-indigo: 0 0 20px rgba(99, 102, 241, 0.18);
+}
+
+/* --- SELETOR DE CORES DE ACENTO DINÂMICAS --- */
+[data-accent="purple"],
+[data-theme="purple"] {
+  --accent-cyan: #c084fc;
+  --accent-cyan-glow: rgba(192, 132, 252, 0.3);
+  --accent-blue: #a855f7;
+  --border-glow: rgba(192, 132, 252, 0.35);
+  --shadow-cyan: 0 0 25px rgba(192, 132, 252, 0.25);
+}
+
+[data-accent="emerald"],
+[data-theme="emerald"] {
+  --accent-cyan: #34d399;
+  --accent-cyan-glow: rgba(52, 211, 153, 0.3);
+  --accent-blue: #10b981;
+  --border-glow: rgba(52, 211, 153, 0.35);
+  --shadow-cyan: 0 0 25px rgba(52, 211, 153, 0.25);
+}
+
+[data-accent="amber"],
+[data-theme="amber"] {
+  --accent-cyan: #fbbf24;
+  --accent-cyan-glow: rgba(251, 191, 36, 0.3);
+  --accent-blue: #f59e0b;
+  --border-glow: rgba(251, 191, 36, 0.35);
+  --shadow-cyan: 0 0 25px rgba(251, 191, 36, 0.25);
+}
+
+[data-accent="rose"],
+[data-theme="rose"] {
+  --accent-cyan: #fb7185;
+  --accent-cyan-glow: rgba(251, 113, 133, 0.3);
+  --accent-blue: #f43f5e;
+  --border-glow: rgba(251, 113, 133, 0.35);
+  --shadow-cyan: 0 0 25px rgba(251, 113, 133, 0.25);
+}
+
+[data-accent="cyan"],
+[data-theme="cyan"] {
+  --accent-cyan: #38bdf8;
+  --accent-cyan-glow: rgba(56, 189, 248, 0.28);
+  --accent-blue: #0ea5e9;
+  --border-glow: rgba(56, 189, 248, 0.35);
+  --shadow-cyan: 0 0 25px rgba(56, 189, 248, 0.25);
 }
 
 /* --- RESET & BASE --- */
@@ -2195,6 +2275,84 @@ main.main-content {
   font-size: 0.8rem;
   margin-bottom: 1rem;
   display: none;
+  animation: fadeIn 0.25s ease-out;
+}
+.auth-success-msg {
+  padding: 0.75rem 0.95rem;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--accent-emerald);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 1rem;
+  display: none;
+  animation: fadeIn 0.25s ease-out;
+}
+.auth-info-box {
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin-bottom: 1rem;
+}
+.auth-forgot-link {
+  font-size: 0.75rem;
+  color: var(--accent-cyan);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity var(--trans-fast);
+}
+.auth-forgot-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+.otp-input-field {
+  letter-spacing: 8px;
+  font-size: 1.4rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface-elevated);
+  border: 2px solid var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+.otp-input-field:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+}
+.password-strength-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.password-strength-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.password-strength-bar {
+  height: 100%;
+  width: 0%;
+  transition: width 0.3s ease, background 0.3s ease;
+  border-radius: var(--radius-full);
+}
+.password-strength-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  min-width: 45px;
+  text-align: right;
+  color: var(--text-muted);
 }
 .auth-cloud-badge {
   display: inline-flex;
@@ -2592,5 +2750,413 @@ main.main-content {
   margin: 0.5rem 0;
   white-space: pre-wrap;
   user-select: all;
+}
+
+/* ==========================================================================
+   MODO CLARO (LIGHT MODE) - REFINAMENTO DE SUPERFÍCIES E COMPONENTES
+   ========================================================================== */
+[data-mode="light"] body,
+body.theme-light {
+  background-color: var(--bg-deep);
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 85% 25%, rgba(99, 102, 241, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+    linear-gradient(to bottom, #f8fafc, #f1f5f9, #f8fafc);
+  color: var(--text-primary);
+}
+
+[data-mode="light"] .navbar {
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 4px 20px -5px rgba(15, 23, 42, 0.05);
+}
+
+[data-mode="light"] .card,
+[data-mode="light"] .welcome-card,
+[data-mode="light"] .calendar-card,
+[data-mode="light"] .task-item,
+[data-mode="light"] .kanban-column,
+[data-mode="light"] .kanban-card,
+[data-mode="light"] .cloud-box {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-mode="light"] .kanban-card:hover,
+[data-mode="light"] .task-item:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+[data-mode="light"] .modal-container,
+[data-mode="light"] .modal-content {
+  background: var(--bg-glass-modal);
+  border-color: rgba(203, 213, 225, 0.85);
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.18);
+}
+
+[data-mode="light"] .form-input,
+[data-mode="light"] .form-select,
+[data-mode="light"] .form-textarea {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-mode="light"] .form-input:focus,
+[data-mode="light"] .form-select:focus,
+[data-mode="light"] .form-textarea:focus {
+  background: #ffffff;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+[data-mode="light"] .cloud-sql-code {
+  background: #0f172a;
+  color: #38bdf8;
+}
+
+/* ==========================================================================
+   MICRO-INTERAÇÕES & ANIMAÇÕES INTERATIVAS COM JAVASCRIPT
+   ========================================================================== */
+
+/* Botão de Alternar Modo Claro / Escuro */
+.theme-mode-toggle {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--trans-fast);
+}
+
+.theme-mode-toggle svg {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+}
+
+.theme-mode-toggle:hover svg {
+  transform: rotate(20deg) scale(1.15);
+}
+
+/* Risco suave e dinâmico ao concluir tarefas */
+.task-title,
+.task-title-text,
+.task-text-title {
+  position: relative;
+  transition: color 0.3s ease;
+  display: inline-block;
+}
+
+.task-item.completed .task-text-title,
+.task-item.done .task-text-title,
+.task-card-item.completed .task-title-text,
+.kanban-card.done .kanban-card-title {
+  color: var(--text-muted) !important;
+  text-decoration: line-through;
+  text-decoration-color: var(--accent-emerald);
+  text-decoration-thickness: 2px;
+}
+
+/* Pulso celebratório ao concluir tarefa */
+@keyframes taskCompleteSuccess {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  40% {
+    transform: scale(1.02);
+    box-shadow: 0 0 22px 6px rgba(16, 185, 129, 0.35);
+    border-color: var(--accent-emerald);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.task-just-completed {
+  animation: taskCompleteSuccess 0.65s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Checkbox Interativo com Micro-animação */
+.custom-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-visual {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-checkbox:hover .checkbox-visual {
+  border-color: var(--accent-cyan);
+  transform: scale(1.15);
+  box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
+.custom-checkbox input:checked + .checkbox-visual {
+  background: var(--accent-emerald);
+  border-color: var(--accent-emerald);
+  transform: scale(1.05);
+  box-shadow: 0 0 14px var(--accent-emerald-glow);
+}
+
+.checkbox-visual svg {
+  width: 14px;
+  height: 14px;
+  stroke: #ffffff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-checkbox input:checked + .checkbox-visual svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Mouse Follower Glow nos Cards (Efeito Glassmorphism Dinâmico) */
+.card,
+.task-item,
+.kanban-card,
+.welcome-card,
+.timeline-item {
+  position: relative;
+}
+
+.card::before,
+.task-item::before,
+.kanban-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: radial-gradient(350px circle at var(--mouse-x, -999px) var(--mouse-y, -999px), rgba(56, 189, 248, 0.08), transparent 45%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover::before,
+.task-item:hover::before,
+.kanban-card:hover::before {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   DRAG AND DROP FLUIDO (KANBAN & TIMELINE)
+   ========================================================================== */
+.task-card-draggable {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.22s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-draggable:active {
+  cursor: grabbing;
+}
+
+.task-card-draggable.is-dragging {
+  opacity: 0.45;
+  transform: scale(1.04) rotate(1.8deg);
+  box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.5);
+  border: 1.5px dashed var(--accent-cyan) !important;
+  z-index: 1000;
+}
+
+.kanban-column.drag-over-active,
+.timeline-period-group.drag-over-active {
+  background: rgba(56, 189, 248, 0.08) !important;
+  border: 2px dashed var(--accent-cyan) !important;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 25px rgba(56, 189, 248, 0.12);
+  transition: all 0.2s ease;
+}
+
+.kanban-column {
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ==========================================================================
+   TRANSIÇÕES SUAVES DE MODAL (FADE-IN & SLIDE-UP SPRING)
+   ========================================================================== */
+.modal {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.modal.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-content,
+.modal-container {
+  transform: translateY(28px) scale(0.96);
+  opacity: 0;
+  transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.modal.open .modal-content,
+.modal.open .modal-container {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* ==========================================================================
+   PAINEL DE DIAGNÓSTICO SUPABASE NO MODAL DE NUVEM
+   ========================================================================== */
+.diag-panel {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.15rem;
+  margin-top: 1rem;
+}
+
+.diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.diag-header h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.diag-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.diag-item:last-child {
+  border-bottom: none;
+}
+
+.diag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.diag-badge.ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.diag-badge.warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.diag-badge.error {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+/* ==========================================================================
+   MOBILE BOTTOM DOCK (BARRA INFERIOR FLUIDA PARA CELULAR)
+   ========================================================================== */
+.mobile-bottom-dock {
+  display: none;
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99;
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.65rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-dock {
+    display: flex;
+  }
+}
+
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  transition: all var(--trans-fast);
+  text-decoration: none;
+}
+
+.dock-item svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dock-item.active {
+  color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
+.dock-item:active {
+  transform: scale(0.92);
+}
+
+/* Canvas Confetti */
+#confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 99999;
 }
 

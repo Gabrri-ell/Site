@@ -431,6 +431,18 @@ class ChronosStore {
   logoutUser() {
     this.setCurrentSession(null);
   }
+
+  updateUserPassword(email, newPassword) {
+    const users = this.getRegisteredUsers();
+    const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    if (!user) {
+      return { success: false, message: 'Usuário não encontrado.' };
+    }
+    user.password = btoa(newPassword);
+    this.saveRegisteredUsers(users);
+    this.setCurrentSession({ id: user.id, name: user.name, email: user.email });
+    return { success: true, user };
+  }
 }
 
 // ==========================================================================
@@ -443,6 +455,7 @@ class ChronosCloudManager {
     this.isConfigured = false;
     this.isSyncing = false;
     this.syncTimeout = null;
+    this.hasRelationalTables = false;
     this.init();
   }
 
@@ -451,7 +464,21 @@ class ChronosCloudManager {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUPABASE_CONFIG));
       if (saved && saved.url && saved.key) return saved;
     } catch {}
-    // Credenciais padrão da nuvem Supabase
+
+    // 1. Detecção automática de variáveis de ambiente (Vercel ou window.ENV)
+    const envUrl = window.NEXT_PUBLIC_SUPABASE_URL ||
+                   window.SUPABASE_URL ||
+                   (window.ENV && (window.ENV.NEXT_PUBLIC_SUPABASE_URL || window.ENV.SUPABASE_URL));
+
+    const envKey = window.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+                   window.SUPABASE_ANON_KEY ||
+                   (window.ENV && (window.ENV.NEXT_PUBLIC_SUPABASE_ANON_KEY || window.ENV.SUPABASE_ANON_KEY));
+
+    if (envUrl && envKey) {
+      return { url: envUrl.trim(), key: envKey.trim() };
+    }
+
+    // 2. Credenciais padrão da nuvem Supabase
     return {
       url: 'https://uzzaifelwjsitqmaaifo.supabase.co',
       key: 'sb_publishable_Vg45ZPXTHvQzy6gXwClsIg_Nh9EE22g'
@@ -476,6 +503,15 @@ class ChronosCloudManager {
       try {
         this.client = window.supabase.createClient(config.url, config.key);
         this.isConfigured = true;
+
+        // Listener de eventos de autenticação (recuperação de senha e sessões)
+        this.client.auth.onAuthStateChange((event, session) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            if (typeof openResetPasswordModal === 'function') {
+              openResetPasswordModal();
+            }
+          }
+        });
       } catch (err) {
         console.warn('Erro ao inicializar cliente Supabase:', err);
         this.client = null;
@@ -524,17 +560,45 @@ class ChronosCloudManager {
       this.isSyncing = true;
       this.updateStatusUI('syncing');
 
+      const tasks = this.store.getTasks();
+      const habits = this.store.getHabits();
+      const reflections = this.store.getPastReflections();
+
+      // 1. Sincronização Principal na Tabela chronos_userdata (Compatibilidade e Backup)
       const payload = {
         user_id: session.id,
-        tasks: this.store.getTasks(),
-        habits: this.store.getHabits(),
-        reflections: this.store.getPastReflections(),
+        tasks: tasks,
+        habits: habits,
+        reflections: reflections,
         updated_at: new Date().toISOString()
       };
 
       const { error } = await this.client
         .from('chronos_userdata')
         .upsert(payload, { onConflict: 'user_id' });
+
+      // 2. Mapeamento das tabelas individuais relacionais (tarefas e agendas)
+      try {
+        if (tasks && tasks.length > 0) {
+          const tarefasPayload = tasks.map(t => ({
+            id: t.id,
+            user_id: session.id,
+            title: t.title || '',
+            description: t.description || '',
+            time: t.time || '09:00',
+            period: t.period || 'manha',
+            category: t.category || 'trabalho',
+            priority: t.priority || 'media',
+            status: t.status || 'todo',
+            date: t.date || null,
+            recurrence: t.recurrence || 'once',
+            subtasks: t.subtasks || []
+          }));
+          await this.client.from('tarefas').upsert(tarefasPayload, { onConflict: 'id' });
+        }
+      } catch (errRelational) {
+        // Tabela tarefas ainda não criada no Supabase - fallback para chronos_userdata ativo
+      }
 
       if (error) {
         console.warn('Erro no upload para Supabase:', error);
@@ -559,6 +623,7 @@ class ChronosCloudManager {
       this.isSyncing = true;
       this.updateStatusUI('syncing');
 
+      // Tentar carregar da tabela chronos_userdata
       const { data, error } = await this.client
         .from('chronos_userdata')
         .select('*')
@@ -603,6 +668,162 @@ class ChronosCloudManager {
     this.syncTimeout = setTimeout(() => {
       this.pushToCloud();
     }, 1500);
+  }
+
+  // RECUPERAÇÃO DE SENHA VIA E-MAIL (SUPABASE AUTH)
+  async sendPasswordRecoveryEmail(email) {
+    if (!this.client || !this.isConfigured) {
+      return { success: false, message: 'Supabase não conectado.' };
+    }
+    try {
+      // Redireciona o usuário de volta para a aplicação após clicar no link do e-mail
+      const redirectUrl = window.location.origin + window.location.pathname;
+      const { data, error } = await this.client.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  // ATUALIZAÇÃO DA SENHA DO USUÁRIO NA NUVEM
+  async updateUserPassword(newPassword) {
+    if (!this.client || !this.isConfigured) {
+      return { success: false, message: 'Supabase não conectado.' };
+    }
+    try {
+      const { data, error } = await this.client.auth.updateUser({
+        password: newPassword
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  // VALIDAÇÃO DO CÓDIGO NUMÉRICO DE 6 DÍGITOS (OTP) NO SUPABASE
+  async verifyRecoveryOtp(email, token) {
+    if (!this.client || !this.isConfigured) {
+      return { success: false, message: 'Supabase não conectado.' };
+    }
+    try {
+      const cleanToken = token.trim().replace(/\s+/g, '');
+      let { data, error } = await this.client.auth.verifyOtp({
+        email: email.trim(),
+        token: cleanToken,
+        type: 'recovery'
+      });
+
+      // Fallback para type: 'email' caso configurado com template padrão
+      if (error && error.message && (error.message.toLowerCase().includes('type') || error.message.toLowerCase().includes('invalid'))) {
+        const res2 = await this.client.auth.verifyOtp({
+          email: email.trim(),
+          token: cleanToken,
+          type: 'email'
+        });
+        if (!res2.error) {
+          data = res2.data;
+          error = null;
+        }
+      }
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  // DIAGNÓSTICO EM TEMPO REAL (SUPABASE & VERCEL)
+  async runDiagnostic() {
+    const config = this.getConfig();
+    const result = {
+      url: config.url,
+      hasKey: !!config.key,
+      ping: false,
+      latency: 0,
+      userdataTable: false,
+      tarefasTable: false,
+      agendasTable: false,
+      canWrite: false,
+      timestamp: new Date().toLocaleTimeString()
+    };
+
+    if (!config.url || !config.key) return result;
+
+    const t0 = performance.now();
+    try {
+      const res = await fetch(`${config.url}/rest/v1/chronos_userdata?select=user_id&limit=1`, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`
+        }
+      });
+      result.latency = Math.round(performance.now() - t0);
+      result.ping = res.ok;
+      result.userdataTable = res.ok;
+    } catch {
+      result.ping = false;
+    }
+
+    try {
+      const resT = await fetch(`${config.url}/rest/v1/tarefas?limit=1`, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`
+        }
+      });
+      result.tarefasTable = resT.ok;
+    } catch {}
+
+    try {
+      const resA = await fetch(`${config.url}/rest/v1/agendas?limit=1`, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`
+        }
+      });
+      result.agendasTable = resA.ok;
+    } catch {}
+
+    try {
+      const testId = 'diag_write_' + Date.now();
+      const testRes = await fetch(`${config.url}/rest/v1/chronos_userdata`, {
+        method: 'POST',
+        headers: {
+          'apikey': config.key,
+          'Authorization': `Bearer ${config.key}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
+          user_id: testId,
+          tasks: [],
+          updated_at: new Date().toISOString()
+        })
+      });
+      if (testRes.ok) {
+        result.canWrite = true;
+        fetch(`${config.url}/rest/v1/chronos_userdata?user_id=eq.${testId}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.key,
+            'Authorization': `Bearer ${config.key}`
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+
+    return result;
   }
 
   updateStatusUI(state = null) {
@@ -672,6 +893,182 @@ const store = new ChronosStore();
 const chronosCloud = new ChronosCloudManager(store);
 window.chronosCloud = chronosCloud;
 
+// ==========================================================================
+// MÓDULO: ÁUDIO SINTETIZADO NATIVO (WEB AUDIO API) COM LIMPEZA DE MEMÓRIA
+// ==========================================================================
+const ChronosAudio = {
+  ctx: null,
+  init() {
+    if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  },
+  playSuccessChime() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const now = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'triangle';
+
+      osc1.frequency.setValueAtTime(587.33, now); // D5
+      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.12); // A5
+
+      osc2.frequency.setValueAtTime(880, now);
+      osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.15); // D6
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.48);
+      osc2.stop(now + 0.48);
+
+      // Desconecta e libera nós do Web Audio graph após o término
+      setTimeout(() => {
+        try {
+          osc1.disconnect();
+          osc2.disconnect();
+          gain.disconnect();
+        } catch {}
+      }, 550);
+    } catch {}
+  },
+  playPop() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.08);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+
+      setTimeout(() => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch {}
+      }, 150);
+    } catch {}
+  }
+};
+window.ChronosAudio = ChronosAudio;
+
+// ==========================================================================
+// MÓDULO: EXPLOSÃO CELEBRATÓRIA DE CONFETES EM CANVAS (COM LIBERAÇÃO DE VRAM)
+// ==========================================================================
+let _confettiAnimId = null;
+function triggerConfetti(originX, originY) {
+  let canvas = document.getElementById('confetti-canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'confetti-canvas';
+    document.body.appendChild(canvas);
+  }
+
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const startX = originX !== undefined ? originX : window.innerWidth / 2;
+  const startY = originY !== undefined ? originY : window.innerHeight * 0.4;
+
+  const colors = ['#38bdf8', '#6366f1', '#a855f7', '#10b981', '#fbbf24', '#f43f5e', '#34d399'];
+  const particles = [];
+  const count = 50;
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 4 + Math.random() * 8;
+    particles.push({
+      x: startX,
+      y: startY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 3.5,
+      size: 4 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      alpha: 1,
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 12,
+      shape: Math.random() > 0.4 ? 'rect' : 'circle',
+      gravity: 0.22 + Math.random() * 0.1
+    });
+  }
+
+  if (_confettiAnimId) {
+    cancelAnimationFrame(_confettiAnimId);
+    _confettiAnimId = null;
+  }
+
+  function updateConfetti() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let active = false;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.gravity;
+      p.vx *= 0.98;
+      p.rotation += p.rotationSpeed;
+      p.alpha -= 0.016;
+
+      if (p.alpha > 0) {
+        active = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillStyle = p.color;
+
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    if (active) {
+      _confettiAnimId = requestAnimationFrame(updateConfetti);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (_confettiAnimId) cancelAnimationFrame(_confettiAnimId);
+      _confettiAnimId = null;
+      // Libera memória de bitmap da GPU
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.remove();
+    }
+  }
+
+  _confettiAnimId = requestAnimationFrame(updateConfetti);
+}
+window.triggerConfetti = triggerConfetti;
+
 // --- NOTIFICAÇÕES TOAST ELEGANTE ---
 function showToast(message, type = 'success') {
   let container = document.getElementById('toast-container');
@@ -707,7 +1104,8 @@ function showToast(message, type = 'success') {
   }, 3200);
 }
 
-// --- RELÓGIO & DATA EM TEMPO REAL ---
+// --- RELÓGIO & DATA EM TEMPO REAL COM PREVENÇÃO DE INTERVALOS MÚLTIPLOS ---
+let _realtimeClockInterval = null;
 function initRealtimeClock() {
   const dateEl = document.getElementById('nav-live-date');
   const timeEl = document.getElementById('nav-live-time');
@@ -720,7 +1118,7 @@ function initRealtimeClock() {
     const optionsDate = { weekday: 'short', day: '2-digit', month: 'short' };
     const dateFormatted = now.toLocaleDateString('pt-BR', optionsDate);
     
-    // Formata hora: "19:54:12"
+    // Formata hora: "19:54"
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const timeFormatted = `${hours}:${minutes}`;
@@ -742,7 +1140,10 @@ function initRealtimeClock() {
   }
 
   update();
-  setInterval(update, 1000);
+  if (_realtimeClockInterval) {
+    clearInterval(_realtimeClockInterval);
+  }
+  _realtimeClockInterval = setInterval(update, 1000);
 }
 
 // --- CONTROLE DO MODAL DE TAREFA ---
@@ -1153,9 +1554,41 @@ function renderTimelineSection(tasks) {
   if (countAfternoon) countAfternoon.textContent = afternoonTasks.length;
   if (countNight) countNight.textContent = nightTasks.length;
 
-  if (morningContainer) morningContainer.innerHTML = buildTimelineItemsHtml(morningTasks);
-  if (afternoonContainer) afternoonContainer.innerHTML = buildTimelineItemsHtml(afternoonTasks);
-  if (nightContainer) nightContainer.innerHTML = buildTimelineItemsHtml(nightTasks);
+  if (morningContainer) {
+    morningContainer.innerHTML = buildTimelineItemsHtml(morningTasks);
+    setupTimelineDropZone(morningContainer, 'manha');
+  }
+  if (afternoonContainer) {
+    afternoonContainer.innerHTML = buildTimelineItemsHtml(afternoonTasks);
+    setupTimelineDropZone(afternoonContainer, 'tarde');
+  }
+  if (nightContainer) {
+    nightContainer.innerHTML = buildTimelineItemsHtml(nightTasks);
+    setupTimelineDropZone(nightContainer, 'noite');
+  }
+}
+
+function setupTimelineDropZone(container, period) {
+  container.ondragover = (e) => {
+    e.preventDefault();
+    container.classList.add('drag-over-active');
+  };
+  container.ondragleave = () => {
+    container.classList.remove('drag-over-active');
+  };
+  container.ondrop = (e) => {
+    e.preventDefault();
+    container.classList.remove('drag-over-active');
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (taskId) {
+      store.updateTask(taskId, { period: period });
+      if (window.ChronosAudio) window.ChronosAudio.playPop();
+      const periodName = period === 'manha' ? 'Manhã' : period === 'tarde' ? 'Tarde' : 'Noite';
+      showToast(`Tarefa movida para o período da ${periodName}!`, 'info');
+      renderDashboard();
+      setupCardMouseGlow();
+    }
+  };
 }
 
 function buildTimelineItemsHtml(tasksList) {
@@ -1181,7 +1614,11 @@ function buildTimelineItemsHtml(tasksList) {
     }
 
     return `
-      <div class="task-item ${isCompleted ? 'completed' : ''}" id="timeline-item-${task.id}">
+      <div class="task-item task-card-draggable ${isCompleted ? 'completed' : ''}" 
+           id="timeline-item-${task.id}"
+           draggable="true"
+           ondragstart="handleDragStart(event, '${task.id}')"
+           ondragend="handleDragEnd(event)">
         <div class="task-left">
           <label class="custom-checkbox" title="${isCompleted ? 'Marcar como pendente' : 'Marcar como concluída'}">
             <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleTask('${task.id}')" />
@@ -1219,19 +1656,34 @@ function buildTimelineItemsHtml(tasksList) {
 function toggleTask(id) {
   const updated = store.toggleTaskStatus(id);
   if (updated) {
+    const el = document.getElementById(`timeline-item-${id}`);
     if (updated.status === 'done') {
-      showToast('Tarefa concluída! Parabéns!', 'success');
-      triggerConfetti();
+      showToast('Tarefa concluída! Parabéns! 🎉', 'success');
+      if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+      if (el) {
+        el.classList.add('task-just-completed');
+        const rect = el.getBoundingClientRect();
+        triggerConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      } else {
+        triggerConfetti();
+      }
     } else {
       showToast('Tarefa reaberta.', 'info');
+      if (window.ChronosAudio) window.ChronosAudio.playPop();
     }
-    refreshActivePage();
+    setTimeout(() => {
+      refreshActivePage();
+      setupCardMouseGlow();
+    }, 280);
   }
 }
+window.toggleTask = toggleTask;
+window.toggleTaskFromAnywhere = toggleTask;
 
 function deleteTaskItem(id) {
   if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
     store.deleteTask(id);
+    if (window.ChronosAudio) window.ChronosAudio.playPop();
     showToast('Tarefa excluída com sucesso.', 'info');
     refreshActivePage();
   }
@@ -1438,41 +1890,69 @@ function buildKanbanColumnHtml(taskList, columnStatus) {
   }).join('');
 }
 
-// Suporte para Drag and Drop no Kanban
+// Suporte para Drag and Drop Fluido no Kanban
 function handleDragStart(e, taskId) {
+  e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', taskId);
-  e.target.classList.add('dragging');
+  e.target.classList.add('is-dragging');
 }
+
+function handleDragEnd(e) {
+  if (e.target) e.target.classList.remove('is-dragging');
+  document.querySelectorAll('.kanban-column, .timeline-period-group').forEach(el => {
+    el.classList.remove('drag-over-active');
+  });
+}
+window.handleDragStart = handleDragStart;
+window.handleDragEnd = handleDragEnd;
 
 function setupKanbanDragDrop() {
   const columns = document.querySelectorAll('.kanban-column');
   columns.forEach(col => {
-    col.addEventListener('dragover', e => {
+    col.ondragover = (e) => {
       e.preventDefault();
-      col.style.borderColor = 'var(--accent-cyan)';
-    });
-    col.addEventListener('dragleave', () => {
-      col.style.borderColor = 'var(--border-subtle)';
-    });
-    col.addEventListener('drop', e => {
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('drag-over-active');
+    };
+    col.ondragleave = () => {
+      col.classList.remove('drag-over-active');
+    };
+    col.ondrop = (e) => {
       e.preventDefault();
-      col.style.borderColor = 'var(--border-subtle)';
+      col.classList.remove('drag-over-active');
       const taskId = e.dataTransfer.getData('text/plain');
       const targetStatus = col.dataset.status;
       if (taskId && targetStatus) {
         store.updateTask(taskId, { status: targetStatus });
-        showToast(`Status atualizado para: ${getStatusLabel(targetStatus)}`, 'success');
+        if (targetStatus === 'done') {
+          showToast('Tarefa concluída! Parabéns! 🎉', 'success');
+          if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+          triggerConfetti(e.clientX, e.clientY);
+        } else {
+          showToast(`Status atualizado para: ${getStatusLabel(targetStatus)}`, 'info');
+          if (window.ChronosAudio) window.ChronosAudio.playPop();
+        }
         renderTasksPage();
+        setupCardMouseGlow();
       }
-    });
+    };
   });
 }
 
 function moveTask(id, targetStatus) {
   store.updateTask(id, { status: targetStatus });
-  showToast(`Tarefa movida para: ${getStatusLabel(targetStatus)}`, 'success');
+  if (targetStatus === 'done') {
+    showToast('Tarefa concluída! Parabéns! 🎉', 'success');
+    if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+    triggerConfetti();
+  } else {
+    showToast(`Tarefa movida para: ${getStatusLabel(targetStatus)}`, 'info');
+    if (window.ChronosAudio) window.ChronosAudio.playPop();
+  }
   renderTasksPage();
+  setupCardMouseGlow();
 }
+
 
 function cycleTaskStatus(id) {
   const task = store.getTasks().find(t => t.id === id);
@@ -2068,11 +2548,54 @@ function resetAllDataFactory() {
 }
 
 // ==========================================================================
-// MÓDULO: TEMAS VISUAIS DE ACENTO
+// MÓDULO: TEMAS VISUAIS & MODO ESCURO / CLARO NATIVO
 // ==========================================================================
+function initThemeMode() {
+  const savedMode = localStorage.getItem('chronos_mode') || 
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  setThemeMode(savedMode, false);
+}
+
+function toggleDarkLightMode() {
+  const current = document.documentElement.getAttribute('data-mode') || 'dark';
+  const newMode = current === 'dark' ? 'light' : 'dark';
+  setThemeMode(newMode, true);
+  if (window.ChronosAudio) window.ChronosAudio.playPop();
+}
+
+function setThemeMode(mode, showNotice = true) {
+  document.documentElement.setAttribute('data-mode', mode);
+  localStorage.setItem('chronos_mode', mode);
+
+  const iconSun = document.getElementById('theme-toggle-icon-sun');
+  const iconMoon = document.getElementById('theme-toggle-icon-moon');
+  if (iconSun && iconMoon) {
+    if (mode === 'light') {
+      iconSun.style.display = 'none';
+      iconMoon.style.display = 'block';
+    } else {
+      iconSun.style.display = 'block';
+      iconMoon.style.display = 'none';
+    }
+  }
+
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', mode === 'light' ? '#f8fafc' : '#090d16');
+  }
+
+  if (showNotice) {
+    showToast(`Modo ${mode === 'light' ? 'Claro ☀️' : 'Escuro 🌙'} ativado!`, 'info');
+  }
+}
+window.initThemeMode = initThemeMode;
+window.toggleDarkLightMode = toggleDarkLightMode;
+window.setThemeMode = setThemeMode;
+
 function initThemePicker() {
   const current = store.getTheme();
   document.documentElement.setAttribute('data-theme', current);
+  document.documentElement.setAttribute('data-accent', current);
   document.querySelectorAll('.theme-dot').forEach(dot => {
     dot.classList.toggle('active', dot.dataset.theme === current);
   });
@@ -2080,11 +2603,113 @@ function initThemePicker() {
 
 function switchTheme(theme) {
   store.setTheme(theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-accent', theme);
   document.querySelectorAll('.theme-dot').forEach(dot => {
     dot.classList.toggle('active', dot.dataset.theme === theme);
   });
-  showToast(`Tema alterado para: ${theme.toUpperCase()}`, 'info');
+  if (window.ChronosAudio) window.ChronosAudio.playPop();
+  showToast(`Cor de destaque: ${theme.toUpperCase()}`, 'info');
 }
+window.initThemePicker = initThemePicker;
+window.switchTheme = switchTheme;
+
+// Mouse follower glow nos cards interativos com Event Delegation única e RAF Throttling
+let _mouseGlowDelegated = false;
+function setupCardMouseGlow() {
+  if (_mouseGlowDelegated) return;
+  _mouseGlowDelegated = true;
+
+  let rafGlow = null;
+  document.addEventListener('mousemove', (e) => {
+    if (rafGlow) return;
+    rafGlow = requestAnimationFrame(() => {
+      rafGlow = null;
+      const target = e.target;
+      if (!target || !target.closest) return;
+      const card = target.closest('.card, .task-item, .kanban-card, .welcome-card, .calendar-card, .stat-card');
+      if (card) {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+        card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+      }
+    });
+  }, { passive: true });
+}
+window.setupCardMouseGlow = setupCardMouseGlow;
+
+// DIAGNÓSTICO EM TEMPO REAL SUPABASE NO MODAL
+async function runLiveCloudDiagnostic() {
+  const btn = document.getElementById('btn-run-cloud-diag');
+  const pingBadge = document.getElementById('diag-ping-badge');
+  const userdataBadge = document.getElementById('diag-userdata-badge');
+  const tarefasBadge = document.getElementById('diag-tarefas-badge');
+  const agendasBadge = document.getElementById('diag-agendas-badge');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Executando Diagnóstico...';
+  }
+
+  showToast('Iniciando teste de conectividade e tabelas...', 'info');
+  const diag = await chronosCloud.runDiagnostic();
+
+  if (pingBadge) {
+    if (diag.ping) {
+      pingBadge.className = 'diag-badge ok';
+      pingBadge.textContent = `🟢 Online (${diag.latency}ms)`;
+    } else {
+      pingBadge.className = 'diag-badge error';
+      pingBadge.textContent = `🔴 Offline (Sem resposta)`;
+    }
+  }
+
+  if (userdataBadge) {
+    if (diag.userdataTable && diag.canWrite) {
+      userdataBadge.className = 'diag-badge ok';
+      userdataBadge.textContent = `🟢 Ativa (Leitura & Escrita OK)`;
+    } else if (diag.userdataTable) {
+      userdataBadge.className = 'diag-badge ok';
+      userdataBadge.textContent = `🟢 Conectada (Leitura OK)`;
+    } else {
+      userdataBadge.className = 'diag-badge warn';
+      userdataBadge.textContent = `🟡 Não detectada`;
+    }
+  }
+
+  if (tarefasBadge) {
+    if (diag.tarefasTable) {
+      tarefasBadge.className = 'diag-badge ok';
+      tarefasBadge.textContent = `🟢 Criada & Mapeada`;
+    } else {
+      tarefasBadge.className = 'diag-badge warn';
+      tarefasBadge.textContent = `🟡 Pronta no SQL (Fallback Ativo)`;
+    }
+  }
+
+  if (agendasBadge) {
+    if (diag.agendasTable) {
+      agendasBadge.className = 'diag-badge ok';
+      agendasBadge.textContent = `🟢 Criada & Mapeada`;
+    } else {
+      agendasBadge.className = 'diag-badge warn';
+      agendasBadge.textContent = `🟡 Pronta no SQL (Fallback Ativo)`;
+    }
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '🔄 Repetir Teste';
+  }
+
+  if (diag.ping) {
+    showToast(`Diagnóstico concluído! Latência: ${diag.latency}ms. Banco 100% pronto!`, 'success');
+    if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+  } else {
+    showToast('Falha ao conectar com o Supabase. Verifique a URL e Chave.', 'error');
+  }
+}
+window.runLiveCloudDiagnostic = runLiveCloudDiagnostic;
 
 // ==========================================================================
 // MÓDULO: MODAL DE ATALHOS DE TECLADO
@@ -2147,16 +2772,23 @@ function registerServiceWorker() {
 }
 
 // ==========================================================================
-// MÓDULO: GERENCIAMENTO DE AUTENTICAÇÃO (UI, LOGIN, CADASTRO, SESSÃO)
+// MÓDULO: GERENCIAMENTO DE AUTENTICAÇÃO & RECUPERAÇÃO DE SENHA (COM CÓDIGO OTP)
 // ==========================================================================
-let currentAuthTab = 'login'; // 'login' | 'register'
+let currentAuthTab = 'login'; // 'login' | 'register' | 'forgot'
+let recoveryStep = 1; // 1 = solicitar código | 2 = validar código de 6 dígitos
+let pendingRecoveryEmail = '';
+let currentResetEmail = null;
 
 function openAuthModal(tab = 'login') {
+  if (tab !== 'forgot') recoveryStep = 1;
   setAuthTab(tab);
   const modal = document.getElementById('auth-modal');
   if (modal) {
     modal.classList.add('open');
-    document.getElementById('auth-error-box').style.display = 'none';
+    const errBox = document.getElementById('auth-error-box');
+    const succBox = document.getElementById('auth-success-box');
+    if (errBox) errBox.style.display = 'none';
+    if (succBox) succBox.style.display = 'none';
   }
 }
 
@@ -2165,36 +2797,234 @@ function closeAuthModal() {
   if (modal) modal.classList.remove('open');
 }
 
+function resetRecoveryFlow() {
+  recoveryStep = 1;
+  setAuthTab('forgot');
+  const emailInput = document.getElementById('auth-email-input');
+  if (emailInput) {
+    emailInput.disabled = false;
+    emailInput.focus();
+  }
+}
+
+async function resendRecoveryCode() {
+  if (!pendingRecoveryEmail) return;
+  showToast('Reenviando código de 6 dígitos...', 'info');
+  if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+    const res = await chronosCloud.sendPasswordRecoveryEmail(pendingRecoveryEmail);
+    if (res.success) {
+      showToast('Novo código enviado para seu e-mail!', 'success');
+      if (window.ChronosAudio) window.ChronosAudio.playPop();
+    } else {
+      showAuthError('Erro ao reenviar: ' + res.message);
+    }
+  } else {
+    showToast('Novo código gerado!', 'success');
+  }
+}
+
 function setAuthTab(tab) {
   currentAuthTab = tab;
   document.getElementById('auth-tab-login')?.classList.toggle('active', tab === 'login');
   document.getElementById('auth-tab-register')?.classList.toggle('active', tab === 'register');
+  document.getElementById('auth-tab-forgot')?.classList.toggle('active', tab === 'forgot');
   
   const nameField = document.getElementById('auth-name-group');
+  const emailGroup = document.getElementById('auth-email-group');
+  const emailInput = document.getElementById('auth-email-input');
+  const passwordGroup = document.getElementById('auth-password-group');
+  const passwordInput = document.getElementById('auth-password-input');
+  const otpGroup = document.getElementById('auth-otp-group');
+  const forgotInfo = document.getElementById('auth-forgot-info');
   const submitBtn = document.getElementById('auth-submit-btn');
   const modalTitle = document.getElementById('auth-modal-title');
   const errorBox = document.getElementById('auth-error-box');
+  const successBox = document.getElementById('auth-success-box');
+  const altActionText = document.getElementById('auth-alt-action-text');
 
   if (errorBox) errorBox.style.display = 'none';
+  if (successBox) successBox.style.display = 'none';
 
   if (tab === 'login') {
+    recoveryStep = 1;
     if (nameField) nameField.style.display = 'none';
+    if (emailGroup) emailGroup.style.display = 'block';
+    if (emailInput) emailInput.disabled = false;
+    if (passwordGroup) passwordGroup.style.display = 'block';
+    if (passwordInput) passwordInput.required = true;
+    if (otpGroup) otpGroup.style.display = 'none';
+    if (forgotInfo) forgotInfo.style.display = 'none';
     if (submitBtn) submitBtn.textContent = 'Entrar na Conta';
     if (modalTitle) modalTitle.textContent = 'Acessar sua Conta';
-  } else {
-    if (nameField) nameField.style.display = 'flex';
+    if (altActionText) altActionText.innerHTML = 'Não tem conta? <a href="javascript:void(0)" onclick="setAuthTab(\'register\')" style="color:var(--accent-cyan); font-weight:600;">Criar agora</a>';
+  } else if (tab === 'register') {
+    recoveryStep = 1;
+    if (nameField) nameField.style.display = 'block';
+    if (emailGroup) emailGroup.style.display = 'block';
+    if (emailInput) emailInput.disabled = false;
+    if (passwordGroup) passwordGroup.style.display = 'block';
+    if (passwordInput) passwordInput.required = true;
+    if (otpGroup) otpGroup.style.display = 'none';
+    if (forgotInfo) forgotInfo.style.display = 'none';
     if (submitBtn) submitBtn.textContent = 'Criar Conta Gratuita';
     if (modalTitle) modalTitle.textContent = 'Cadastrar Nova Conta';
+    if (altActionText) altActionText.innerHTML = 'Já possui conta? <a href="javascript:void(0)" onclick="setAuthTab(\'login\')" style="color:var(--accent-cyan); font-weight:600;">Entrar</a>';
+  } else if (tab === 'forgot') {
+    if (nameField) nameField.style.display = 'none';
+    if (passwordGroup) passwordGroup.style.display = 'none';
+    if (passwordInput) passwordInput.required = false;
+
+    if (recoveryStep === 1) {
+      if (emailGroup) emailGroup.style.display = 'block';
+      if (emailInput) emailInput.disabled = false;
+      if (otpGroup) otpGroup.style.display = 'none';
+      if (forgotInfo) {
+        forgotInfo.style.display = 'block';
+        forgotInfo.innerHTML = '<strong>✉️ Recuperação com Código de 6 Dígitos:</strong><br>Digite seu e-mail cadastrado. Enviaremos um código numérico de 6 dígitos para você redefinir sua senha com facilidade, sem depender de links externos.';
+      }
+      if (submitBtn) submitBtn.textContent = '📧 Enviar Código de 6 Dígitos';
+      if (modalTitle) modalTitle.textContent = 'Recuperar Senha por Código';
+    } else {
+      // recoveryStep === 2
+      if (emailGroup) emailGroup.style.display = 'block';
+      if (emailInput) {
+        emailInput.value = pendingRecoveryEmail;
+        emailInput.disabled = true;
+      }
+      if (otpGroup) otpGroup.style.display = 'block';
+      if (forgotInfo) {
+        forgotInfo.style.display = 'block';
+        forgotInfo.innerHTML = `<strong>📬 Código enviado para seu e-mail!</strong><br>Localize o código de 6 dígitos que enviamos para <strong>${escapeHtml(pendingRecoveryEmail)}</strong> (cheque a caixa de entrada e spam) e digite abaixo:`;
+      }
+      if (submitBtn) submitBtn.textContent = '🔐 Validar Código e Redefinir';
+      if (modalTitle) modalTitle.textContent = 'Inserir Código de Verificação';
+      setTimeout(() => document.getElementById('auth-otp-input')?.focus(), 150);
+    }
+    if (altActionText) altActionText.innerHTML = 'Lembrou sua senha? <a href="javascript:void(0)" onclick="setAuthTab(\'login\')" style="color:var(--accent-cyan); font-weight:600;">Voltar ao Login</a>';
   }
 }
 
 async function handleAuthSubmit(e) {
   e.preventDefault();
-  const email = document.getElementById('auth-email-input').value.trim();
-  const password = document.getElementById('auth-password-input').value;
+  const emailInput = document.getElementById('auth-email-input');
+  const passwordInput = document.getElementById('auth-password-input');
+  const otpInput = document.getElementById('auth-otp-input');
+  const email = emailInput ? emailInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value : '';
+  const otpCode = otpInput ? otpInput.value.trim().replace(/\D/g, '') : '';
   const errorBox = document.getElementById('auth-error-box');
+  const successBox = document.getElementById('auth-success-box');
   const submitBtn = document.getElementById('auth-submit-btn');
 
+  if (errorBox) errorBox.style.display = 'none';
+  if (successBox) successBox.style.display = 'none';
+
+  // --- ABA RECUPERAR SENHA (FLUXO EM 2 ETAPAS COM CÓDIGO) ---
+  if (currentAuthTab === 'forgot') {
+    if (recoveryStep === 1) {
+      if (!email) {
+        showAuthError('Por favor, informe seu endereço de e-mail cadastrado.');
+        return;
+      }
+
+      const originalText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando código...';
+      }
+
+      try {
+        if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+          const res = await chronosCloud.sendPasswordRecoveryEmail(email);
+          if (!res.success) {
+            showAuthError('Falha ao enviar e-mail: ' + res.message);
+            return;
+          }
+          pendingRecoveryEmail = email;
+          recoveryStep = 2;
+          setAuthTab('forgot');
+          showAuthSuccess(`✅ Código de verificação enviado para <strong>${escapeHtml(email)}</strong>!<br>Copie o código numérico de 6 dígitos recebido por e-mail e digite abaixo:`);
+          if (window.ChronosAudio) window.ChronosAudio.playPop();
+          showToast('Código enviado para seu e-mail!', 'success');
+        } else {
+          // Modo local
+          const localUsers = store.getRegisteredUsers();
+          const user = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+          if (!user) {
+            showAuthError('Nenhuma conta local encontrada com este e-mail.');
+            return;
+          }
+          const mockCode = String(Math.floor(100000 + Math.random() * 900000));
+          localStorage.setItem('chronos_mock_otp_' + email.toLowerCase(), mockCode);
+          pendingRecoveryEmail = email;
+          recoveryStep = 2;
+          setAuthTab('forgot');
+          showAuthSuccess(`✅ Código local gerado para teste: <strong style="font-size:1.15rem; color:var(--accent-cyan); letter-spacing:2px;">${mockCode}</strong><br>Digite este código abaixo para prosseguir.`);
+          if (window.ChronosAudio) window.ChronosAudio.playPop();
+          showToast(`Código de teste: ${mockCode}`, 'info');
+        }
+      } catch (err) {
+        showAuthError('Erro ao solicitar código: ' + err.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+      }
+      return;
+    } else {
+      // recoveryStep === 2: Validação do código OTP de 6 dígitos
+      if (!otpCode || otpCode.length < 6) {
+        showAuthError('Por favor, digite o código numérico de 6 dígitos recebido por e-mail.');
+        return;
+      }
+
+      const originalText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Validando código...';
+      }
+
+      try {
+        if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+          const res = await chronosCloud.verifyRecoveryOtp(pendingRecoveryEmail, otpCode);
+          if (!res.success) {
+            showAuthError('Código inválido ou expirado. Verifique os números ou clique em "Reenviar código".');
+            return;
+          }
+
+          showToast('Código validado com sucesso! Crie sua nova senha.', 'success');
+          if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+          closeAuthModal();
+          recoveryStep = 1;
+          openResetPasswordModal(pendingRecoveryEmail);
+        } else {
+          // Validação local
+          const savedMockCode = localStorage.getItem('chronos_mock_otp_' + pendingRecoveryEmail.toLowerCase());
+          if (savedMockCode !== otpCode) {
+            showAuthError('Código incorreto. Digite o código de 6 dígitos gerado.');
+            return;
+          }
+          localStorage.removeItem('chronos_mock_otp_' + pendingRecoveryEmail.toLowerCase());
+          showToast('Código validado com sucesso! Crie sua nova senha.', 'success');
+          if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+          closeAuthModal();
+          recoveryStep = 1;
+          openResetPasswordModal(pendingRecoveryEmail);
+        }
+      } catch (err) {
+        showAuthError('Erro ao validar código: ' + err.message);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+      }
+      return;
+    }
+  }
+
+  // --- VALIDAÇÕES DE LOGIN E CADASTRO ---
   if (!email || !password) {
     showAuthError('Por favor, preencha todos os campos obrigatórios.');
     return;
@@ -2317,9 +3147,151 @@ async function handleAuthSubmit(e) {
 
 function showAuthError(msg) {
   const errorBox = document.getElementById('auth-error-box');
+  const successBox = document.getElementById('auth-success-box');
+  if (successBox) successBox.style.display = 'none';
   if (errorBox) {
     errorBox.textContent = msg;
     errorBox.style.display = 'block';
+  }
+}
+
+function showAuthSuccess(htmlMsg) {
+  const successBox = document.getElementById('auth-success-box');
+  const errorBox = document.getElementById('auth-error-box');
+  if (errorBox) errorBox.style.display = 'none';
+  if (successBox) {
+    successBox.innerHTML = htmlMsg;
+    successBox.style.display = 'block';
+  }
+}
+
+// ==========================================================================
+// MÓDULO: REDEFINIÇÃO DE SENHA (MODAL & FORÇA DE SENHA)
+// ==========================================================================
+function openResetPasswordModal(email = null) {
+  currentResetEmail = email;
+  const modal = document.getElementById('reset-password-modal');
+  if (modal) {
+    modal.classList.add('open');
+    const errBox = document.getElementById('reset-error-box');
+    if (errBox) errBox.style.display = 'none';
+    const form = document.getElementById('reset-password-form');
+    if (form) form.reset();
+    const bar = document.getElementById('reset-strength-bar');
+    const text = document.getElementById('reset-strength-text');
+    if (bar) bar.style.width = '0%';
+    if (text) text.textContent = '';
+  }
+}
+
+function closeResetPasswordModal() {
+  const modal = document.getElementById('reset-password-modal');
+  if (modal) modal.classList.remove('open');
+  currentResetEmail = null;
+}
+
+function checkResetPasswordStrength(password) {
+  const bar = document.getElementById('reset-strength-bar');
+  const text = document.getElementById('reset-strength-text');
+  if (!bar || !text) return;
+
+  if (!password) {
+    bar.style.width = '0%';
+    text.textContent = '';
+    return;
+  }
+
+  let score = 0;
+  if (password.length >= 6) score += 25;
+  if (password.length >= 10) score += 25;
+  if (/[A-Z]/.test(password)) score += 20;
+  if (/[0-9]/.test(password)) score += 15;
+  if (/[^A-Za-z0-9]/.test(password)) score += 15;
+
+  bar.style.width = `${Math.min(100, score)}%`;
+
+  if (score < 40) {
+    bar.style.background = 'var(--accent-rose)';
+    text.textContent = 'Fraca';
+    text.style.color = 'var(--accent-rose)';
+  } else if (score < 75) {
+    bar.style.background = 'var(--accent-amber)';
+    text.textContent = 'Média';
+    text.style.color = 'var(--accent-amber)';
+  } else {
+    bar.style.background = 'var(--accent-emerald)';
+    text.textContent = 'Forte';
+    text.style.color = 'var(--accent-emerald)';
+  }
+}
+
+async function handleResetPasswordSubmit(e) {
+  e.preventDefault();
+  const newPass = document.getElementById('reset-new-password').value;
+  const confirmPass = document.getElementById('reset-confirm-password').value;
+  const submitBtn = document.getElementById('btn-submit-reset-password');
+
+  if (!newPass || !confirmPass) {
+    showResetError('Por favor, preencha todos os campos obrigatórios.');
+    return;
+  }
+
+  if (newPass.length < 6) {
+    showResetError('A nova senha deve conter pelo menos 6 caracteres.');
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    showResetError('As senhas digitadas não coincidem.');
+    return;
+  }
+
+  const originalText = submitBtn ? submitBtn.textContent : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Gravando nova senha...';
+  }
+
+  try {
+    if (chronosCloud && chronosCloud.isConfigured && chronosCloud.client) {
+      const res = await chronosCloud.updateUserPassword(newPass);
+      if (!res.success) {
+        showResetError(res.message);
+        return;
+      }
+      showToast('🎉 Senha redefinida na nuvem com sucesso!', 'success');
+    } else if (currentResetEmail) {
+      const res = store.updateUserPassword(currentResetEmail, newPass);
+      if (!res.success) {
+        showResetError(res.message);
+        return;
+      }
+      showToast('🎉 Senha local redefinida com sucesso!', 'success');
+    } else {
+      showResetError('Sessão expirada. Solicite um novo link de recuperação por e-mail.');
+      return;
+    }
+
+    if (window.ChronosAudio) window.ChronosAudio.playSuccessChime();
+    triggerConfetti();
+    closeResetPasswordModal();
+    updateUserSessionUI();
+    refreshActivePage();
+  } catch (err) {
+    showResetError('Falha ao atualizar senha: ' + err.message);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  }
+}
+
+function showResetError(msg) {
+  const errBox = document.getElementById('reset-error-box');
+  if (errBox) {
+    errBox.textContent = msg;
+    errBox.style.display = 'block';
   }
 }
 
@@ -2846,10 +3818,12 @@ function toggleMobileMenu() {
 // --- INICIALIZAÇÃO NO CARREGAMENTO DO DOM ---
 document.addEventListener('DOMContentLoaded', () => {
   initRealtimeClock();
+  initThemeMode();
   initThemePicker();
   setupKeyboardShortcuts();
   registerServiceWorker();
   Pomodoro.init();
+  setupCardMouseGlow();
 
   // Listener do form de tarefas
   const taskForm = document.getElementById('task-form');
@@ -2885,6 +3859,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const authModal = document.getElementById('auth-modal');
     if (e.target === authModal) closeAuthModal();
+
+    const resetModal = document.getElementById('reset-password-modal');
+    if (e.target === resetModal) closeResetPasswordModal();
   });
 
   // Setup de Drag & Drop no Kanban
@@ -2898,6 +3875,12 @@ document.addEventListener('DOMContentLoaded', () => {
     authForm.addEventListener('submit', handleAuthSubmit);
   }
 
+  // Listener do form de redefinição de senha
+  const resetForm = document.getElementById('reset-password-form');
+  if (resetForm) {
+    resetForm.addEventListener('submit', handleResetPasswordSubmit);
+  }
+
   // Atualizar estado de sessão do usuário
   updateUserSessionUI();
 
@@ -2907,6 +3890,83 @@ document.addEventListener('DOMContentLoaded', () => {
     window.chronosCloud.checkInitialSession();
   }
 
+  // Checar se o usuário abriu a página vindo de um link de recuperação de e-mail do Supabase
+  if (window.location.hash.includes('type=recovery') || window.location.hash.includes('access_token')) {
+    setTimeout(() => {
+      openResetPasswordModal();
+    }, 450);
+  }
+
   // Render inicial de acordo com a página atual
   refreshActivePage();
+  setupCardMouseGlow();
 });
+
+// ==========================================================================
+// EXPORTAÇÃO GLOBAL EXPLÍCITA PARA BOTÕES E MICRO-INTERAÇÕES
+// ==========================================================================
+window.store = store;
+window.chronosCloud = chronosCloud;
+window.Pomodoro = Pomodoro;
+window.ChronosAudio = ChronosAudio;
+window.triggerConfetti = triggerConfetti;
+window.showToast = showToast;
+window.openTaskModal = openTaskModal;
+window.closeTaskModal = closeTaskModal;
+window.openHabitModal = openHabitModal;
+window.closeHabitModal = closeHabitModal;
+window.openShortcutsModal = openShortcutsModal;
+window.closeShortcutsModal = closeShortcutsModal;
+window.openCloudModal = openCloudModal;
+window.closeCloudModal = closeCloudModal;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.setAuthTab = setAuthTab;
+window.openResetPasswordModal = openResetPasswordModal;
+window.closeResetPasswordModal = closeResetPasswordModal;
+window.checkResetPasswordStrength = checkResetPasswordStrength;
+window.handleResetPasswordSubmit = handleResetPasswordSubmit;
+window.resendRecoveryCode = resendRecoveryCode;
+window.resetRecoveryFlow = resetRecoveryFlow;
+window.handleUserLogout = handleUserLogout;
+window.migrateLocalAccountToCloud = migrateLocalAccountToCloud;
+window.toggleDarkLightMode = toggleDarkLightMode;
+window.switchTheme = switchTheme;
+window.toggleMobileMenu = toggleMobileMenu;
+window.toggleTask = toggleTask;
+window.toggleTaskFromAnywhere = toggleTask;
+window.deleteTaskItem = deleteTaskItem;
+window.deleteTaskFromAnywhere = deleteTaskItem;
+window.handleToggleHabit = handleToggleHabit;
+window.handleDeleteHabit = handleDeleteHabit;
+window.toggleHabitFromDash = toggleHabitFromDash;
+window.saveReflection = saveReflection;
+window.selectMood = selectMood;
+window.changeCalendarMonth = changeCalendarMonth;
+window.resetCalendarToToday = resetCalendarToToday;
+window.selectCalendarDay = selectCalendarDay;
+window.openTaskModalForDate = openTaskModalForDate;
+window.openTaskModalForCurrentTimeline = openTaskModalForCurrentTimeline;
+window.switchDashboardTimelineDate = switchDashboardTimelineDate;
+window.setViewMode = setViewMode;
+window.moveTask = moveTask;
+window.cycleTaskStatus = cycleTaskStatus;
+window.addMemorySubtask = addMemorySubtask;
+window.removeMemorySubtask = removeMemorySubtask;
+window.toggleMemorySubtask = toggleMemorySubtask;
+window.exportUserDataBackup = exportUserDataBackup;
+window.importUserDataBackup = importUserDataBackup;
+window.exportBackupFile = exportBackupFile;
+window.importBackupFromFile = importBackupFromFile;
+window.resetAllDataFactory = resetAllDataFactory;
+window.saveCloudConfig = saveCloudConfig;
+window.disconnectCloudConfig = disconnectCloudConfig;
+window.triggerManualCloudSync = triggerManualCloudSync;
+window.runLiveCloudDiagnostic = runLiveCloudDiagnostic;
+window.copyCloudSql = copyCloudSql;
+window.requestNotificationPermission = requestNotificationPermission;
+window.handleDragStart = handleDragStart;
+window.handleDragEnd = handleDragEnd;
+window.setupCardMouseGlow = setupCardMouseGlow;
+
+

@@ -71,6 +71,24 @@
           <span class="theme-dot" data-theme="rose" style="background:#fb7185;" onclick="switchTheme('rose')"></span>
         </div>
 
+        <!-- Alternador de Modo Claro / Escuro -->
+        <button class="btn btn-secondary btn-icon theme-mode-toggle" id="btn-theme-mode" onclick="toggleDarkLightMode()" title="Alternar Modo Escuro / Claro">
+          <svg id="theme-toggle-icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="theme-toggle-icon-moon" style="display:none;" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+
         <button class="btn btn-secondary btn-icon" onclick="openShortcutsModal()" title="Atalhos de teclado (?)">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </button>
@@ -386,7 +404,7 @@
     </div>
   </div>
 
-  <!-- MODAL: AUTENTICAÇÃO (LOGIN & CADASTRO COM E-MAIL E SENHA) -->
+  <!-- MODAL: AUTENTICAÇÃO (LOGIN, CADASTRO & RECUPERAÇÃO DE SENHA) -->
   <div class="modal-overlay" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <div class="modal-dialog" style="max-width: 440px;">
       <div class="modal-header">
@@ -399,39 +417,116 @@
 
       <form id="auth-form">
         <div class="modal-body">
+          <!-- Abas: Entrar vs Criar Conta vs Recuperar -->
           <div class="auth-tab-buttons">
             <div class="auth-tab-btn active" id="auth-tab-login" onclick="setAuthTab('login')">Entrar</div>
-            <div class="auth-tab-btn" id="auth-tab-register" onclick="setAuthTab('register')">Criar Nova Conta</div>
+            <div class="auth-tab-btn" id="auth-tab-register" onclick="setAuthTab('register')">Criar Conta</div>
+            <div class="auth-tab-btn" id="auth-tab-forgot" onclick="setAuthTab('forgot')">Recuperar</div>
           </div>
 
+          <!-- Mensagens de Alerta -->
           <div id="auth-error-box" class="auth-error-msg"></div>
+          <div id="auth-success-box" class="auth-success-msg"></div>
 
+          <!-- Informativo da Recuperação de Senha -->
+          <div id="auth-forgot-info" class="auth-info-box" style="display:none;">
+            <strong>✉️ Recuperação Segura por E-mail:</strong><br>
+            Digite o e-mail cadastrado. Enviaremos um link de recuperação diretamente para você criar uma nova senha.
+          </div>
+
+          <!-- Campo Nome (visível apenas em cadastro) -->
           <div class="form-group" id="auth-name-group" style="display: none;">
             <label class="form-label" for="auth-name-input">Seu Nome ou Apelido *</label>
             <input type="text" id="auth-name-input" class="form-input" placeholder="Ex: Alex Silva" maxlength="60">
           </div>
 
-          <div class="form-group">
+          <!-- Campo E-mail -->
+          <div class="form-group" id="auth-email-group">
             <label class="form-label" for="auth-email-input">Endereço de E-mail *</label>
             <input type="email" id="auth-email-input" class="form-input" placeholder="seuemail@exemplo.com" required>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="auth-password-input">Senha *</label>
-            <input type="password" id="auth-password-input" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+          <!-- Campo Senha -->
+          <div class="form-group" id="auth-password-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <label class="form-label" for="auth-password-input" style="margin-bottom:0;">Senha *</label>
+              <a href="javascript:void(0)" class="auth-forgot-link" onclick="setAuthTab('forgot')">Esqueceu a senha?</a>
+            </div>
+            <input type="password" id="auth-password-input" class="form-input" placeholder="Mínimo 6 caracteres" minlength="6">
+          </div>
+
+          <!-- Campo Código de Verificação OTP de 6 Dígitos -->
+          <div class="form-group" id="auth-otp-group" style="display: none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <label class="form-label" for="auth-otp-input" style="margin-bottom:0;">Código de 6 Dígitos *</label>
+              <a href="javascript:void(0)" class="auth-forgot-link" onclick="resendRecoveryCode()">Reenviar código</a>
+            </div>
+            <input type="text" id="auth-otp-input" class="form-input otp-input-field" placeholder="123456" maxlength="8" autocomplete="one-time-code">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Copie o código do seu e-mail</span>
+              <a href="javascript:void(0)" class="auth-forgot-link" onclick="resetRecoveryFlow()" style="font-size:0.75rem;">Trocar e-mail</a>
+            </div>
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
             <span class="auth-cloud-badge">
-              ☁️ Sincronização Segura
+              ☁️ Sincronização Supabase
             </span>
-            <span style="font-size:0.75rem; color:var(--text-muted);">100% Gratuito</span>
+            <span id="auth-alt-action-text" style="font-size:0.75rem; color:var(--text-muted);">
+              100% Gratuito
+            </span>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" onclick="closeAuthModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="auth-submit-btn">Entrar na Conta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: REDEFINIÇÃO DE NOVA SENHA (APÓS CLICAR NO E-MAIL DE RECUPERAÇÃO) -->
+  <div class="modal-overlay" id="reset-password-modal" role="dialog" aria-modal="true" aria-labelledby="reset-modal-title">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" color="var(--accent-cyan)"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="reset-modal-title">Redefinir Nova Senha</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeResetPasswordModal()" aria-label="Fechar">✕</button>
+      </div>
+
+      <form id="reset-password-form">
+        <div class="modal-body">
+          <p style="font-size:0.83rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.45;">
+            Crie uma nova senha de acesso para a sua conta. Ela será aplicada imediatamente no Supabase e em todos os seus dispositivos.
+          </p>
+
+          <div id="reset-error-box" class="auth-error-msg"></div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-new-password">Nova Senha *</label>
+            <input type="password" id="reset-new-password" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6" oninput="checkResetPasswordStrength(this.value)">
+            <div class="password-strength-container">
+              <div class="password-strength-track">
+                <div class="password-strength-bar" id="reset-strength-bar"></div>
+              </div>
+              <span class="password-strength-text" id="reset-strength-text"></span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:0.75rem;">
+            <label class="form-label" for="reset-confirm-password">Confirmar Nova Senha *</label>
+            <input type="password" id="reset-confirm-password" class="form-input" placeholder="Repita a nova senha" required minlength="6">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeResetPasswordModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-reset-password">
+            Salvar Nova Senha
+          </button>
         </div>
       </form>
     </div>
@@ -513,27 +608,59 @@
           <!-- Guia de Instruções Expansível -->
           <details class="cloud-instructions-details" style="margin-top:0.75rem;">
             <summary style="cursor:pointer; font-size:0.78rem; color:var(--accent-cyan); font-weight:600;">
-              ℹ️ Como pegar essas chaves no Supabase e criar a tabela (1 min)
+              ℹ️ Como pegar essas chaves no Supabase e criar as tabelas
             </summary>
             <div class="cloud-instructions-content">
               <ol style="margin:0.5rem 0 0.5rem 1.2rem; font-size:0.75rem; color:var(--text-secondary); line-height:1.5;">
                 <li>Crie uma conta gratuita em <strong><a href="https://supabase.com" target="_blank" rel="noopener" style="color:var(--accent-cyan);">supabase.com</a></strong>.</li>
                 <li>Clique em <strong>"New Project"</strong>.</li>
                 <li>Em <strong>Project Settings > API</strong>, copie a <strong>URL</strong> e a <strong>anon key</strong>.</li>
-                <li>No menu <strong>SQL Editor</strong>, cole o código abaixo e clique em <strong>Run</strong>:</li>
+                <li>No menu <strong>SQL Editor</strong>, cole o código do arquivo <code>supabase_schema.sql</code> e clique em <strong>Run</strong>.</li>
               </ol>
-              <pre class="cloud-sql-code"><code>create table if not exists chronos_userdata (
+              <pre class="cloud-sql-code"><code>create table if not exists public.chronos_userdata (
   user_id text primary key,
   tasks jsonb default '[]'::jsonb,
   habits jsonb default '[]'::jsonb,
   reflections jsonb default '[]'::jsonb,
   updated_at timestamptz default now()
 );
-alter table chronos_userdata enable row level security;
-create policy "Allow all operations for users" on chronos_userdata for all using (true) with check (true);</code></pre>
-              <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.72rem; padding:0.25rem 0.5rem;" onclick="copyCloudSql()">📋 Copiar Código SQL</button>
+alter table public.chronos_userdata enable row level security;
+create policy "Allow all operations for users" on public.chronos_userdata for all using (true) with check (true);</code></pre>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.72rem; padding:0.25rem 0.5rem;" onclick="copyCloudSql()">📋 Copiar Código SQL Completo</button>
             </div>
           </details>
+        </div>
+
+        <!-- Seção: Diagnóstico de Conexão em Tempo Real (Supabase & Vercel) -->
+        <div class="cloud-box" style="border-color: rgba(56, 189, 248, 0.35); background: var(--bg-surface-elevated);">
+          <div class="cloud-box-header">
+            <h4>⚡ Diagnóstico de Conexão em Tempo Real</h4>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-run-cloud-diag" onclick="runLiveCloudDiagnostic()" style="padding:0.28rem 0.65rem; font-size:0.75rem;">
+              🔍 Testar Conexão Agora
+            </button>
+          </div>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Valida a latência da API, a autenticação de leitura/escrita e o mapeamento das tabelas no banco.
+          </p>
+
+          <div id="cloud-diag-results" style="display:flex; flex-direction:column; gap:0.4rem;">
+            <div class="diag-item">
+              <span>📡 Ping REST da API</span>
+              <span class="diag-badge ok" id="diag-ping-badge">🟢 Online (Latência OK)</span>
+            </div>
+            <div class="diag-item">
+              <span>💾 Tabela 'chronos_userdata' (JSONB)</span>
+              <span class="diag-badge ok" id="diag-userdata-badge">🟢 Leitura & Escrita Prontas</span>
+            </div>
+            <div class="diag-item">
+              <span>📋 Tabela 'tarefas' (Relacional)</span>
+              <span class="diag-badge ok" id="diag-tarefas-badge">🟡 Pronta no SQL (Fallback Ativo)</span>
+            </div>
+            <div class="diag-item">
+              <span>📅 Tabela 'agendas' (Relacional)</span>
+              <span class="diag-badge ok" id="diag-agendas-badge">🟡 Pronta no SQL (Fallback Ativo)</span>
+            </div>
+          </div>
         </div>
 
         <!-- Seção: Backup & Restauração Instantânea (Sem precisar de nada) -->
@@ -566,6 +693,25 @@ create policy "Allow all operations for users" on chronos_userdata for all using
       </div>
     </div>
   </div>
+
+  <!-- DOCK FLUIDO DE NAVEGAÇÃO INFERIOR PARA MOBILE -->
+  <nav class="mobile-bottom-dock" aria-label="Navegação Rápida Mobile">
+    <a href="index.html" class="dock-item" title="Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </a>
+    <a href="tarefas.html" class="dock-item" title="Tarefas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </a>
+    <a href="rotina.html" class="dock-item active" title="Hábitos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    </a>
+    <a href="calendario.html" class="dock-item" title="Calendário">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>
+    </a>
+    <button type="button" class="dock-item" onclick="openCloudModal()" title="Nuvem Supabase" style="background:none; border:none; cursor:pointer;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+    </button>
+  </nav>
 
   <!-- CONTAINER DE TOASTS -->
   <div class="toast-container" id="toast-container"></div>
